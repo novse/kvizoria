@@ -74,7 +74,13 @@ exports.getQuiz = async (req, res) => {
 exports.createQuiz = async (req, res) => {
   try {
     const { title, description, category_id, quiz_type, difficulty, time_limit, max_attempts,
-            is_public, shuffle_questions, shuffle_answers, pass_score, questions } = req.body;
+            is_public, shuffle_questions, shuffle_answers, pass_score } = req.body;
+    
+    let questions = req.body.questions;
+    if (typeof questions === 'string') {
+      try { questions = JSON.parse(questions); } catch(e) { questions = []; }
+    }
+    
     const cover_image = req.file ? `/uploads/${req.file.filename}` : null;
 
     const uuid = uuidv4();
@@ -82,7 +88,7 @@ exports.createQuiz = async (req, res) => {
       INSERT INTO quizzes (uuid, title, description, cover_image, category_id, author_id,
         quiz_type, difficulty, time_limit, max_attempts, is_public, shuffle_questions,
         shuffle_answers, pass_score, is_published)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `, [uuid, title, description, cover_image, category_id || null, req.user.id,
         quiz_type || 'classic', difficulty || 'medium', time_limit || null,
         max_attempts || 3, is_public !== false ? 1 : 0,
