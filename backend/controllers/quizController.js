@@ -265,3 +265,36 @@ exports.getUserHistory = async (req, res) => {
   `, [req.user.id]);
   res.json(rows);
 };
+// ─── CHECK ATTEMPTS LIMIT ─────────────────────────────────────
+exports.checkAttemptsLimit = async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    
+    const [[quiz]] = await pool.query(
+      'SELECT id, max_attempts FROM quizzes WHERE uuid = ?',
+      [uuid]
+    );
+    
+    if (!quiz) {
+      return res.status(404).json({ message: 'Квиз не найден' });
+    }
+    
+    const [[attempts]] = await pool.query(
+      'SELECT COUNT(*) as count FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?',
+      [quiz.id, req.user.id]
+    );
+    
+    const remaining = Math.max(0, quiz.max_attempts - attempts.count);
+    
+    res.json({
+      allowed: attempts.count < quiz.max_attempts,
+      attemptsLeft: remaining,
+      maxAttempts: quiz.max_attempts,
+      usedAttempts: attempts.count,
+      message: remaining === 0 ? 'Лимит попыток исчерпан' : `Осталось попыток: ${remaining}`
+    });
+  } catch (err) {
+    console.error('Check attempts error:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
