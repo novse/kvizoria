@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import api from '../../utils/api';
 import './QuizPlayer.css';
 
@@ -46,15 +47,13 @@ export default function QuizPlayer({
   onBack,
   data,
   quizData,
+  attemptsLeft, // новый пропс из QuizPage
 }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const mergedQuiz = useMemo(() => quiz || data || quizData || {}, [data, quiz, quizData]);
   const quizUuid = useMemo(() => getQuizUuid(mergedQuiz, quizId), [mergedQuiz, quizId]);
-  const normalizedQuestions = useMemo(
-    () => normalizeQuestions(mergedQuiz, questions),
-    [mergedQuiz, questions]
-  );
-
+  
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -63,10 +62,87 @@ export default function QuizPlayer({
   const [timeLeft, setTimeLeft] = useState(
     mergedQuiz?.time_limit ? Number(mergedQuiz.time_limit) : null
   );
+  const [violations, setViolations] = useState([]);
 
-  const totalQuestions = normalizedQuestions.length;
-  const currentQuestion = normalizedQuestions[current];
+  // === ПЕРЕМЕШИВАНИЕ ВОПРОСОВ И ОТВЕТОВ ===
+  const shuffledQuestions = useMemo(() => {
+    const source = normalizeQuestions(mergedQuiz, questions);
+    if (!source.length) return [];
+    
+    // Перемешиваем вопросы
+    const shuffled = [...source];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    // В каждом вопросе перемешиваем ответы
+    return shuffled.map(q => ({
+      ...q,
+      answers: [...q.answers].sort(() => Math.random() - 0.5)
+    }));
+  }, [mergedQuiz, questions]);
 
+  const totalQuestions = shuffledQuestions.length;
+  const currentQuestion = shuffledQuestions[current];
+
+  // === ФУНКЦИЯ ЛОГИРОВАНИЯ НАРУШЕНИЙ ===
+  const logViolation = useCallback(async (type) => {
+    const violation = { type, timestamp: Date.now() };
+    setViolations(prev => [...prev, violation]);
+    
+    try {
+      await api.post(`/quizzes/${quizUuid}/violation`, violation);
+    } catch (err) {
+      console.error('Failed to log violation:', err);
+    }
+  }, [quizUuid]);
+
+  // === 1. МОНИТОРИНГ ПЕРЕКЛЮЧЕНИЯ ВКЛАДОК ===
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) logViolation('tab_switch');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [logViolation]);
+
+  // === 2. БЛОКИРОВКА КОПИРОВАНИЯ (Ctrl+C) ===
+  useEffect(() => {
+    const handleCopy = (e) => {
+      e.preventDefault();
+      logViolation('copy_attempt');
+      return false;
+    };
+    document.addEventListener('copy', handleCopy);
+    return () => document.removeEventListener('copy', handleCopy);
+  }, [logViolation]);
+
+  // === 3. БЛОКИРОВКА ПРАВОЙ КНОПКИ МЫШИ ===
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      logViolation('right_click');
+      return false;
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => document.removeEventListener('contextmenu', handleContextMenu);
+  }, [logViolation]);
+
+  // === 4. БЛОКИРОВКА CTRL+V, CTRL+U, CTRL+S ===
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && ['v', 'u', 's'].includes(e.key)) {
+        e.preventDefault();
+        logViolation(`ctrl_${e.key}`);
+        return false;
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [logViolation]);
+
+  // === 5. ТАЙМЕР С АВТОСДАЧЕЙ ===
   useEffect(() => {
     if (mergedQuiz?.time_limit) {
       setTimeLeft(Number(mergedQuiz.time_limit));
@@ -74,18 +150,18 @@ export default function QuizPlayer({
   }, [mergedQuiz?.time_limit]);
 
   useEffect(() => {
-    if (timeLeft == null) return undefined;
-    if (timeLeft <= 0) {
+    if (timeLeft == null) return;
+    if (timeLeft <= 0 && !result && !submitting && totalQuestions > 0) {
       handleSubmit();
-      return undefined;
+      return;
     }
 
-    const timer = window.setTimeout(() => {
+    const timer = setTimeout(() => {
       setTimeLeft((value) => Math.max(0, value - 1));
     }, 1000);
 
-    return () => window.clearTimeout(timer);
-  }, [timeLeft]);
+    return () => clearTimeout(timer);
+  }, [timeLeft, result, submitting, totalQuestions]);
 
   const progress = useMemo(() => {
     if (!totalQuestions) return 0;
@@ -101,8 +177,9 @@ export default function QuizPlayer({
     }));
   };
 
+  // === ОТПРАВКА РЕЗУЛЬТАТОВ С НАРУШЕНИЯМИ ===
   const handleSubmit = async () => {
-    if (submitting || !quizUuid) return;
+    if (submitting || !quizUuid || !user) return;
 
     setSubmitting(true);
     setError('');
@@ -111,7 +188,7 @@ export default function QuizPlayer({
       const response = await api.post(`/quizzes/${quizUuid}/attempt`, {
         answers: selected,
         time_spent: mergedQuiz?.time_limit ? mergedQuiz.time_limit - (timeLeft ?? 0) : 0,
-        violations: [],
+        violations: violations, // Отправляем все нарушения
       });
 
       setResult(response.data || {});
@@ -142,41 +219,50 @@ export default function QuizPlayer({
     navigate('/quizzes');
   };
 
-  if (!normalizedQuestions.length) {
+  // === ПРОВЕРКА НАЛИЧИЯ ВОПРОСОВ ===
+  if (!shuffledQuestions.length) {
     return (
       <div className="quiz-page quiz-page--empty">
         <div className="quiz-page__status">
           <p>У этого квиза пока нет вопросов для прохождения.</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button type="button" onClick={handleBack}>
+            <button type="button" onClick={handleBack} className="btn btn-outline">
               Вернуться назад
             </button>
-            <Link to="/quizzes">Перейти в каталог</Link>
+            <Link to="/quizzes" className="btn btn-primary">Перейти в каталог</Link>
           </div>
         </div>
       </div>
     );
   }
 
+  // === ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ ===
   if (result) {
     const percent = Number(result?.percent ?? result?.percent_score ?? 0);
     const score = Number(result?.score ?? 0);
     const maxScore = Number(result?.maxScore ?? result?.max_score ?? 0);
     const passed = Boolean(result?.isPassed ?? result?.is_passed);
+    const violationsCount = violations.length;
 
     return (
-      <div className="quiz-page quiz-page--empty">
+      <div className="quiz-page quiz-page--result">
         <div className="quiz-page__status" style={{ maxWidth: 720 }}>
-          <p style={{ fontSize: 22, marginBottom: 6 }}>{passed ? 'Квиз пройден!' : 'Попробуй ещё раз'}</p>
-          <p style={{ marginBottom: 0 }}>
-            Результат: {percent.toFixed(0)}% — {score}/{maxScore}
+          <div style={{ fontSize: 64, marginBottom: 16 }}>{passed ? '🏆' : '📚'}</div>
+          <h2 style={{ marginBottom: 12 }}>{passed ? 'Квиз пройден!' : 'Попробуй ещё раз'}</h2>
+          <p style={{ fontSize: 32, fontWeight: 'bold', margin: '16px 0' }}>
+            {percent.toFixed(0)}% — {score}/{maxScore}
           </p>
-          {error ? <p style={{ color: '#ffb4b4' }}>{error}</p> : null}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button type="button" onClick={handleBack}>
+          {violationsCount > 0 && (
+            <div className="violations-warning">
+              ⚠️ Зафиксировано нарушений: {violationsCount}
+            </div>
+          )}
+          {error && <p style={{ color: '#ffb4b4' }}>{error}</p>}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginTop: 24 }}>
+            <button type="button" onClick={handleBack} className="btn btn-outline">
               Вернуться назад
             </button>
-            <button type="button" onClick={() => window.location.reload()}>
+            <button type="button" onClick={() => window.location.reload()} className="btn btn-primary">
               Пройти ещё раз
             </button>
           </div>
@@ -190,7 +276,7 @@ export default function QuizPlayer({
       <div className="quiz-page quiz-page--error">
         <div className="quiz-page__status">
           <p>Не удалось загрузить вопрос квиза.</p>
-          <button type="button" onClick={handleBack}>
+          <button type="button" onClick={handleBack} className="btn btn-outline">
             Вернуться назад
           </button>
         </div>
@@ -198,6 +284,7 @@ export default function QuizPlayer({
     );
   }
 
+  // === ОСНОВНОЙ РЕНДЕР КВИЗА ===
   return (
     <div className="quiz-page">
       <div className="quiz-page__shell">
@@ -206,6 +293,14 @@ export default function QuizPlayer({
             <div className="quiz-player__meta">
               <span className="quiz-player__badge">{mergedQuiz?.quiz_type || 'classic'}</span>
               {mergedQuiz?.difficulty ? <span className="quiz-player__badge">{mergedQuiz.difficulty}</span> : null}
+              
+              {/* Отображение оставшихся попыток */}
+              {attemptsLeft !== undefined && attemptsLeft !== null && attemptsLeft <= 3 && (
+                <span className={`quiz-player__badge ${attemptsLeft === 1 ? 'badge-danger' : 'badge-warning'}`}>
+                  ⚠️ {attemptsLeft === 1 ? 'Последняя попытка!' : `Осталось: ${attemptsLeft}`}
+                </span>
+              )}
+              
               {timeLeft != null ? (
                 <span className="quiz-player__timer">⏱ {formatTimeLeft(timeLeft)}</span>
               ) : null}
@@ -260,30 +355,28 @@ export default function QuizPlayer({
                 onClick={() => setCurrent((value) => Math.max(0, value - 1))}
                 disabled={current === 0 || submitting}
               >
-                Назад
+                ← Назад
               </button>
 
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {current < normalizedQuestions.length - 1 ? (
-                  <button
-                    type="button"
-                    className="quiz-player__primary"
-                    onClick={() => setCurrent((value) => Math.min(normalizedQuestions.length - 1, value + 1))}
-                    disabled={submitting}
-                  >
-                    Далее
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="quiz-player__primary"
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Отправляем…' : 'Завершить'}
-                  </button>
-                )}
-              </div>
+              {current < shuffledQuestions.length - 1 ? (
+                <button
+                  type="button"
+                  className="quiz-player__primary"
+                  onClick={() => setCurrent((value) => Math.min(shuffledQuestions.length - 1, value + 1))}
+                  disabled={submitting}
+                >
+                  Далее →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="quiz-player__primary quiz-player__submit"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Отправляем…' : '✅ Завершить'}
+                </button>
+              )}
             </div>
           </div>
         </div>
