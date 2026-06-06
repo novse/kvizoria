@@ -128,4 +128,28 @@
   opacity: 0.85;
   transform: translateY(-1px);
 }
+  /* Исправление цвета текста в выпадающем списке категорий */
+.filters select.filter-select {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+}
+
+.filters select.filter-select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 10px;
+}
+
+/* Для браузеров на WebKit (Chrome, Edge, Safari) */
+.filters select.filter-select option:hover {
+  background-color: var(--purple);
+  color: white;
+}
+
+/* Убираем синий фон по умолчанию при выборе */
+.filters select.filter-select option:checked {
+  background-color: var(--purple);
+  color: white;
+}
 }
