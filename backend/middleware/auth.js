@@ -31,4 +31,54 @@ const creatorOrAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminOnly, creatorOrAdmin };
+// Новая функция: проверка лимита попыток для квиза
+const checkQuizAttempts = async (req, res, next) => {
+  const { uuid } = req.params;
+  const userId = req.user.id;
+  const maxAttempts = 3; // стандартное значение, можно переопределить из настроек квиза
+
+  try {
+    // Получаем ID квиза и его настройки лимита
+    const [[quiz]] = await pool.query(
+      'SELECT id, max_attempts FROM quizzes WHERE uuid = ?',
+      [uuid]
+    );
+    
+    if (!quiz) {
+      return res.status(404).json({ message: 'Квиз не найден' });
+    }
+
+    const actualMaxAttempts = quiz.max_attempts || maxAttempts;
+    
+    // Считаем количество завершённых попыток
+    const [[attempts]] = await pool.query(
+      'SELECT COUNT(*) as count FROM quiz_attempts WHERE user_id = ? AND quiz_id = ? AND completed_at IS NOT NULL',
+      [userId, quiz.id]
+    );
+
+    if (attempts.count >= actualMaxAttempts) {
+      return res.status(403).json({ 
+        allowed: false, 
+        message: `Лимит попыток исчерпан (${actualMaxAttempts}/${actualMaxAttempts})`,
+        attemptsLeft: 0,
+        maxAttempts: actualMaxAttempts,
+        usedAttempts: attempts.count
+      });
+    }
+
+    // Сохраняем информацию о квизе в req для дальнейшего использования
+    req.quizInfo = {
+      id: quiz.id,
+      maxAttempts: actualMaxAttempts,
+      attemptsLeft: actualMaxAttempts - attempts.count,
+      usedAttempts: attempts.count
+    };
+    
+    next();
+  } catch (err) {
+    console.error('Check attempts error:', err);
+    res.status(500).json({ message: 'Ошибка при проверке лимита попыток' });
+  }
+};
+
+module.exports = { auth, adminOnly, creatorOrAdmin, checkQuizAttempts };
