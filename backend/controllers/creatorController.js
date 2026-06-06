@@ -25,7 +25,8 @@ exports.createQuiz = async (req, res) => {
     
     const quizId = result.insertId;
     
-    for (const q of questions) {
+    for (let idx = 0; idx < questions.length; idx++) {
+      const q = questions[idx];
       const [qResult] = await pool.query(
         'INSERT INTO questions (quiz_id, text, correct_index) VALUES (?, ?, ?)',
         [quizId, q.text, q.correct]
@@ -34,14 +35,15 @@ exports.createQuiz = async (req, res) => {
       const questionId = qResult.insertId;
       for (let i = 0; i < q.options.length; i++) {
         await pool.query(
-          'INSERT INTO options (question_id, option_text, option_index) VALUES (?, ?, ?)',
-          [questionId, q.options[i], i]
+          'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
+          [questionId, q.options[i], i === q.correct ? 1 : 0]
         );
       }
     }
     
     res.status(201).json({ id: quizId, message: 'Квиз создан' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
