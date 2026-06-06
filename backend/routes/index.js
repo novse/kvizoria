@@ -60,6 +60,6 @@ router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
 
 // ─── VIOLATIONS LOGGING ───────────────────────────────────────
-router.use('/api', require('./violations'));
+//router.use('/api', require('./violations'));
 
 module.exports = router;
