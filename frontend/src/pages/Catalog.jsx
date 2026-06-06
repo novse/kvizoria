@@ -73,10 +73,27 @@ export default function Catalog() {
             onKeyDown={e => e.key === 'Enter' && setParam('search', e.target.value)}
             onBlur={e => setParam('search', e.target.value)}
           />
-          <select className="input filter-select" value={category} onChange={e => setParam('category', e.target.value)}>
-            <option value="">Все категории</option>
-            {categories.map(c => <option key={c.id} value={c.slug}>{c.icon} {c.name}</option>)}
-          </select>
+
+          {/* Категории – кастомные кнопки с цветом */}
+          <div className="category-buttons">
+            <button
+              className={`category-btn ${category === '' ? 'active' : ''}`}
+              onClick={() => setParam('category', '')}
+            >
+              Все категории
+            </button>
+            {categories.map(c => (
+              <button
+                key={c.id}
+                className={`category-btn ${category === c.slug ? 'active' : ''}`}
+                onClick={() => setParam('category', c.slug)}
+                style={{ backgroundColor: c.color, color: '#fff' }}
+              >
+                {c.icon} {c.name}
+              </button>
+            ))}
+          </div>
+
           <select className="input filter-select" value={type} onChange={e => setParam('type', e.target.value)}>
             {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
