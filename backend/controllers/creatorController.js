@@ -33,7 +33,7 @@ exports.createQuiz = async (req, res) => {
       
       const questionId = qResult.insertId;
       for (let i = 0; i < q.options.length; i++) {
-        await db.query(
+        await pool.query(
           'INSERT INTO options (question_id, option_text, option_index) VALUES (?, ?, ?)',
           [questionId, q.options[i], i]
         );
