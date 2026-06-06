@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import QuizCard from '../components/quiz/QuizCard';
@@ -25,6 +25,8 @@ export default function Catalog() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef(null);
 
   const search = searchParams.get('search') || '';
   const category = searchParams.get('category') || '';
@@ -52,11 +54,28 @@ export default function Catalog() {
     api.get('/categories').then(r => setCategories(r.data || []));
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const setParam = (key, val) => {
     const p = new URLSearchParams(searchParams);
     if (val) p.set(key, val); else p.delete(key);
     setSearchParams(p);
   };
+
+  const selectedCategoryLabel = category
+    ? categories.find(c => c.slug === category)?.name || 'Все категории'
+    : 'Все категории';
+  const selectedCategoryIcon = category
+    ? categories.find(c => c.slug === category)?.icon || '📂'
+    : '📂';
 
   return (
     <div className="catalog-page">
@@ -74,24 +93,34 @@ export default function Catalog() {
             onBlur={e => setParam('search', e.target.value)}
           />
 
-          {/* Категории – кастомные кнопки с цветом */}
-          <div className="category-buttons">
-            <button
-              className={`category-btn ${category === '' ? 'active' : ''}`}
-              onClick={() => setParam('category', '')}
-            >
-              Все категории
-            </button>
-            {categories.map(c => (
-              <button
-                key={c.id}
-                className={`category-btn ${category === c.slug ? 'active' : ''}`}
-                onClick={() => setParam('category', c.slug)}
-                style={{ backgroundColor: c.color, color: '#fff' }}
-              >
-                {c.icon} {c.name}
-              </button>
-            ))}
+          {/* Кастомный селект для категорий */}
+          <div className="custom-select" ref={categoryDropdownRef}>
+            <div className="custom-select-trigger" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}>
+              <span className="custom-select-value">
+                <span className="category-icon">{selectedCategoryIcon}</span> {selectedCategoryLabel}
+              </span>
+              <span className="custom-select-arrow">▼</span>
+            </div>
+            {isCategoryDropdownOpen && (
+              <div className="custom-select-options">
+                <div
+                  className={`custom-select-option ${category === '' ? 'selected' : ''}`}
+                  onClick={() => { setParam('category', ''); setIsCategoryDropdownOpen(false); }}
+                >
+                  <span className="category-icon">📂</span> Все категории
+                </div>
+                {categories.map(c => (
+                  <div
+                    key={c.id}
+                    className={`custom-select-option ${category === c.slug ? 'selected' : ''}`}
+                    onClick={() => { setParam('category', c.slug); setIsCategoryDropdownOpen(false); }}
+                  >
+                    <span className="category-icon" style={{ color: c.color }}>{c.icon}</span>
+                    <span>{c.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <select className="input filter-select" value={type} onChange={e => setParam('type', e.target.value)}>
