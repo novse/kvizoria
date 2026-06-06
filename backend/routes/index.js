@@ -69,7 +69,7 @@ router.get('/admin/categories', auth, adminOnly, adminCtrl.getCategories);
 router.post('/admin/categories', auth, adminOnly, adminCtrl.createCategory);
 router.delete('/admin/categories/:id', auth, adminOnly, adminCtrl.deleteCategory);
 router.get('/admin/export-results', exportController.exportResultsToExcel);
-router.post('/admin/quizzes', auth, adminOnly, adminCtrl.createQuizAdmin);
+router.post('/admin/quizzes', auth, adminOnly, upload.single('cover'), adminCtrl.createQuizAdmin);
 router.get('/admin/quizzes/:id/edit', auth, adminOnly, adminCtrl.getQuizForEdit);
 router.put('/admin/quizzes/:id', auth, adminOnly, adminCtrl.updateQuiz);
 router.get('/admin/stats', auth, adminOnly, statsController.getAdminStats);
