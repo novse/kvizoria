@@ -25,7 +25,7 @@ function Footer() {
       fontSize: 14,
       marginTop: 'auto'
     }}>
-      <span>⚡ <strong style={{color:'var(--text-accent)'}}>Квизория</strong> — платформа интерактивных квизов © 2024</span>
+      <span>⚡ <strong style={{color:'var(--text-accent)'}}>Квизория</strong> — платформа интерактивных квизов © 2026</span>
     </footer>
   );
 }
