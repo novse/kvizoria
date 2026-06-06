@@ -2,12 +2,12 @@ const { pool } = require('../config/database');
 
 exports.getAdminStats = async (req, res) => {
   try {
-    const [totalUsers] = await db.query('SELECT COUNT(*) as count FROM users');
-    const [totalQuizzes] = await db.query('SELECT COUNT(*) as count FROM quizzes');
-    const [totalAttempts] = await db.query('SELECT COUNT(*) as count FROM quiz_results');
-    const [avgScore] = await db.query('SELECT AVG(score) as avg FROM quiz_results');
+    const [totalUsers] = await pool.query('SELECT COUNT(*) as count FROM users');
+    const [totalQuizzes] = await pool.query('SELECT COUNT(*) as count FROM quizzes');
+    const [totalAttempts] = await pool.query('SELECT COUNT(*) as count FROM quiz_results');
+    const [avgScore] = await pool.query('SELECT AVG(score) as avg FROM quiz_results');
 
-    const [popularQuizzes] = await db.query(`
+    const [popularQuizzes] = await pool.query(`
       SELECT q.title, COUNT(qr.id) as attempts
       FROM quizzes q
       LEFT JOIN quiz_results qr ON q.id = qr.quiz_id
