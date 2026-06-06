@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authCtrl = require('../controllers/authController');
-const quizCtrl = require('../controllers/quizController');  // ← Убедитесь, что ЭТА строка есть!
+const quizCtrl = require('../controllers/quizController');
 const adminCtrl = require('../controllers/adminController');
 const { auth, adminOnly, creatorOrAdmin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -24,9 +24,7 @@ router.post('/quizzes', auth, upload.single('cover'), quizCtrl.createQuiz);
 router.post('/quizzes/:uuid/publish', auth, quizCtrl.publishQuiz);
 router.post('/quizzes/:uuid/attempt', auth, quizCtrl.submitAttempt);
 router.get('/quizzes/:uuid/leaderboard', quizCtrl.getLeaderboard);
-
-// ─── NEW: CHECK ATTEMPTS LIMIT ────────────────────────────────
-router.get('/quizzes/:uuid/check-attempts', auth, quizCtrl.checkAttemptsLimit);
+router.get('/quizzes/:uuid/check-attempts', auth, quizCtrl.checkAttemptsLimit);  // ← НОВЫЙ РОУТ
 
 // ─── CATEGORIES ───────────────────────────────────────────────
 router.get('/categories', quizCtrl.getCategories);
@@ -45,14 +43,13 @@ router.get('/admin/violations', auth, adminOnly, adminCtrl.getViolations);
 router.get('/admin/categories', auth, adminOnly, adminCtrl.getCategories);
 router.post('/admin/categories', auth, adminOnly, adminCtrl.createCategory);
 router.delete('/admin/categories/:id', auth, adminOnly, adminCtrl.deleteCategory);
-
 router.get('/admin/export-results', exportController.exportResultsToExcel);
 router.post('/admin/quizzes', auth, adminOnly, adminCtrl.createQuizAdmin);
 router.get('/admin/quizzes/:id/edit', auth, adminOnly, adminCtrl.getQuizForEdit);
 router.put('/admin/quizzes/:id', auth, adminOnly, adminCtrl.updateQuiz);
 router.get('/admin/stats', auth, adminOnly, statsController.getAdminStats);
 
-// ─── CREATOR (преподаватель) ─────────────────────────────────
+// ─── CREATOR ─────────────────────────────────────────────────
 router.get('/creator/quizzes', auth, creatorCtrl.getMyQuizzes);
 router.post('/creator/quizzes', auth, upload.single('cover'), creatorCtrl.createQuiz);
 router.get('/creator/quizzes/:id', auth, creatorCtrl.getQuizForEdit);
@@ -60,6 +57,28 @@ router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
 
 // ─── VIOLATIONS LOGGING ───────────────────────────────────────
-//router.use('/api', require('./violations'));
+// ВАЖНО: ЭТОТ РОУТ ДОЛЖЕН БЫТЬ ПОСЛЕДНИМ, ЧТОБЫ НЕ ПЕРЕКРЫВАТЬ ДРУГИЕ
+router.post('/quizzes/:uuid/violation', auth, async (req, res) => {
+    // Временное решение — напрямую в index.js, чтобы избежать цикла
+    try {
+        const pool = require('../config/db');
+        const { uuid } = req.params;
+        const { type, timestamp } = req.body;
+        
+        const [[quiz]] = await pool.query('SELECT id FROM quizzes WHERE uuid = ?', [uuid]);
+        if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+        
+        await pool.query(
+            `INSERT INTO violations_log (user_id, quiz_id, violation_type, description, created_at)
+             VALUES (?, ?, ?, ?, FROM_UNIXTIME(?/1000))`,
+            [req.user.id, quiz.id, type, `Обнаружено нарушение: ${type}`, timestamp || Date.now()]
+        );
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Violation log error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;
