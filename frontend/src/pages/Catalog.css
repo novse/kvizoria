@@ -1,0 +1,104 @@
+/* Catalog page layout polish: scoped overrides to prevent overlap/overflow */
+.catalog-page {
+  width: 100%;
+  min-height: calc(100vh - 72px);
+  overflow-x: clip;
+  box-sizing: border-box;
+}
+
+.catalog-page,
+.catalog-page * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.catalog-page img,
+.catalog-page svg,
+.catalog-page video,
+.catalog-page canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.catalog-page :is(.catalog-container, .catalog-content, .catalog-layout, .container, .content) {
+  width: min(1440px, calc(100% - clamp(20px, 4vw, 56px)));
+  margin-inline: auto;
+}
+
+.catalog-page :is(.catalog-header, .catalog-toolbar, .catalog-filters, .catalog-actions, .filters, .search-bar, .search-row) {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.catalog-page :is(.catalog-grid, .quiz-grid, .cards-grid, .quiz-list) {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: stretch;
+}
+
+.catalog-page :is(.quiz-card, .catalog-card, .card) {
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.catalog-page :is(.catalog-title, .quiz-title, .card-title, h1, h2, h3) {
+  overflow-wrap: anywhere;
+}
+
+.catalog-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .catalog-empty-state) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 260px;
+  padding: clamp(20px, 3vw, 36px);
+  text-align: center;
+  border: 2px dashed rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.catalog-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .catalog-empty-state) :is(h1, h2, h3, p) {
+  margin: 0;
+}
+
+.catalog-page :is(.pagination, .page-controls, .catalog-pagination) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.catalog-page :is(button, input, select, textarea) {
+  max-width: 100%;
+}
+
+@media (max-width: 720px) {
+  .catalog-page {
+    min-height: auto;
+  }
+
+  .catalog-page :is(.catalog-container, .catalog-content, .catalog-layout, .container, .content) {
+    width: min(100%, calc(100% - 20px));
+  }
+
+  .catalog-page :is(.catalog-header, .catalog-toolbar, .catalog-filters, .catalog-actions, .filters, .search-bar, .search-row) {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .catalog-page :is(.catalog-grid, .quiz-grid, .cards-grid, .quiz-list) {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .catalog-empty-state) {
+    min-height: 200px;
+    padding: 18px;
+  }
+}

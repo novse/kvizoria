@@ -1,0 +1,101 @@
+/* Quiz detail page layout polish: scoped overrides to prevent overlap/overflow */
+.quiz-page {
+  width: 100%;
+  min-height: calc(100vh - 72px);
+  overflow-x: clip;
+  box-sizing: border-box;
+}
+
+.quiz-page,
+.quiz-page * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.quiz-page img,
+.quiz-page svg,
+.quiz-page video,
+.quiz-page canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.quiz-page :is(.quiz-container, .quiz-shell, .quiz-content, .container, .content) {
+  width: min(980px, calc(100% - clamp(20px, 4vw, 56px)));
+  margin-inline: auto;
+}
+
+.quiz-page :is(.quiz-header, .quiz-topbar, .quiz-meta, .quiz-navigation, .quiz-nav, .quiz-footer) {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quiz-page :is(.question-card, .quiz-card, .panel, .card) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.quiz-page :is(.question-text, .quiz-title, .quiz-question, h1, h2, h3) {
+  overflow-wrap: anywhere;
+}
+
+.quiz-page :is(.answer-list, .answers, .options, .choices) {
+  display: grid;
+  gap: 12px;
+}
+
+.quiz-page :is(.answer-list, .answers, .options, .choices) > * {
+  min-width: 0;
+}
+
+.quiz-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .quiz-empty-state) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 260px;
+  padding: clamp(20px, 3vw, 36px);
+  text-align: center;
+  border: 2px dashed rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.quiz-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .quiz-empty-state) :is(h1, h2, h3, p) {
+  margin: 0;
+}
+
+.quiz-page :is(.quiz-progress, .progress-wrap, .question-meta, .score-row) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.quiz-page :is(button, input, select, textarea) {
+  max-width: 100%;
+}
+
+@media (max-width: 720px) {
+  .quiz-page {
+    min-height: auto;
+  }
+
+  .quiz-page :is(.quiz-container, .quiz-shell, .quiz-content, .container, .content) {
+    width: min(100%, calc(100% - 20px));
+  }
+
+  .quiz-page :is(.quiz-header, .quiz-topbar, .quiz-meta, .quiz-navigation, .quiz-nav, .quiz-footer) {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .quiz-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .quiz-empty-state) {
+    min-height: 200px;
+    padding: 18px;
+  }
+}

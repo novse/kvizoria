@@ -1,0 +1,125 @@
+/* Profile page layout polish: scoped overrides to prevent overlap/overflow */
+.profile-page {
+  width: 100%;
+  min-height: calc(100vh - 72px);
+  overflow-x: clip;
+  box-sizing: border-box;
+}
+
+.profile-page,
+.profile-page * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.profile-page img,
+.profile-page svg,
+.profile-page video,
+.profile-page canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.profile-page :is(.profile-container, .profile-content, .profile-layout, .profile-grid, .container, .content) {
+  width: min(1320px, calc(100% - clamp(20px, 4vw, 56px)));
+  margin-inline: auto;
+}
+
+.profile-page :is(.profile-content, .profile-layout, .profile-grid) {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: clamp(16px, 2.5vw, 32px);
+  align-items: start;
+}
+
+.profile-page :is(.profile-card, .profile-panel, .profile-section, .panel, .card, .section) {
+  min-width: 0;
+}
+
+.profile-page :is(.profile-card, .profile-panel, .profile-section, .panel, .card, .section) :where(*):not(button) {
+  min-width: 0;
+}
+
+.profile-page :is(.profile-title, .profile-name, .section-title, h1, h2, h3) {
+  overflow-wrap: anywhere;
+}
+
+.profile-page :is(.table-wrapper, .table-scroll, .profile-table-wrap, .history-table-wrap) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.profile-page table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+
+.profile-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .profile-empty-state) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 240px;
+  padding: clamp(20px, 3vw, 36px);
+  text-align: center;
+  border: 2px dashed rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.profile-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .profile-empty-state) :is(h1, h2, h3, p) {
+  margin: 0;
+}
+
+.profile-page :is(.stats-grid, .history-list, .activity-list, .quiz-list, .attempt-list) {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.profile-page :is(.profile-actions, .profile-toolbar, .header-actions) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.profile-page :is(button, input, select, textarea) {
+  max-width: 100%;
+}
+
+@media (max-width: 960px) {
+  .profile-page :is(.profile-content, .profile-layout, .profile-grid) {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-page :is(.stats-grid, .history-list, .activity-list, .quiz-list, .attempt-list) {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .profile-page {
+    min-height: auto;
+  }
+
+  .profile-page :is(.profile-container, .profile-content, .profile-layout, .profile-grid, .container, .content) {
+    width: min(100%, calc(100% - 20px));
+  }
+
+  .profile-page table {
+    min-width: 480px;
+  }
+
+  .profile-page :is(.empty-state, .empty-message, .no-results, .empty-card, .no-data, .profile-empty-state) {
+    min-height: 200px;
+    padding: 18px;
+  }
+
+  .profile-page :is(.profile-actions, .profile-toolbar, .header-actions) {
+    align-items: stretch;
+  }
+}
