@@ -3,7 +3,7 @@ const ExcelJS = require('exceljs');
 
 exports.exportResultsToExcel = async (req, res) => {
     try {
-        const [results] = await db.query(`
+        const [results] = await pool.query(`
             SELECT u.name, u.email, q.title, qr.score, qr.completed_at
             FROM quiz_results qr
             JOIN users u ON qr.user_id = u.id
