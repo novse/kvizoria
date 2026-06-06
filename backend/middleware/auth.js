@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const pool = require('../config/db');
+const { pool } = require('../config/database');  // ← изменено
 
 const auth = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -31,14 +31,12 @@ const creatorOrAdmin = (req, res, next) => {
   next();
 };
 
-// Новая функция: проверка лимита попыток для квиза
 const checkQuizAttempts = async (req, res, next) => {
   const { uuid } = req.params;
   const userId = req.user.id;
-  const maxAttempts = 3; // стандартное значение, можно переопределить из настроек квиза
+  const maxAttempts = 3;
 
   try {
-    // Получаем ID квиза и его настройки лимита
     const [[quiz]] = await pool.query(
       'SELECT id, max_attempts FROM quizzes WHERE uuid = ?',
       [uuid]
@@ -50,7 +48,6 @@ const checkQuizAttempts = async (req, res, next) => {
 
     const actualMaxAttempts = quiz.max_attempts || maxAttempts;
     
-    // Считаем количество завершённых попыток
     const [[attempts]] = await pool.query(
       'SELECT COUNT(*) as count FROM quiz_attempts WHERE user_id = ? AND quiz_id = ? AND completed_at IS NOT NULL',
       [userId, quiz.id]
@@ -66,7 +63,6 @@ const checkQuizAttempts = async (req, res, next) => {
       });
     }
 
-    // Сохраняем информацию о квизе в req для дальнейшего использования
     req.quizInfo = {
       id: quiz.id,
       maxAttempts: actualMaxAttempts,
