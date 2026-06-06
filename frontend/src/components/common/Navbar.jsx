@@ -37,7 +37,7 @@ export default function Navbar() {
           {user ? (
             <div className="navbar-quick-actions">
               {isCreator && (
-                <Link to="/profile#create-quiz" className="btn btn-primary btn-sm">
+                <Link to={user?.role === 'admin' ? '/admin/quiz/create' : '/creator/quizzes/new'} className="btn btn-primary btn-sm">
                   Создать квиз
                 </Link>
               )}
