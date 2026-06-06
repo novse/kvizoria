@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const authCtrl = require('../controllers/authController');
-const quizCtrl = require('../controllers/quizController');
+const quizCtrl = require('../controllers/quizController');  // ← Убедитесь, что ЭТА строка есть!
 const adminCtrl = require('../controllers/adminController');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, creatorOrAdmin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const exportController = require('../controllers/exportController');
 const creatorCtrl = require('../controllers/creatorController');
@@ -24,7 +24,9 @@ router.post('/quizzes', auth, upload.single('cover'), quizCtrl.createQuiz);
 router.post('/quizzes/:uuid/publish', auth, quizCtrl.publishQuiz);
 router.post('/quizzes/:uuid/attempt', auth, quizCtrl.submitAttempt);
 router.get('/quizzes/:uuid/leaderboard', quizCtrl.getLeaderboard);
-router.get('/quizzes/:uuid/check-attempts', auth, quizController.checkAttemptsLimit);
+
+// ─── NEW: CHECK ATTEMPTS LIMIT ────────────────────────────────
+router.get('/quizzes/:uuid/check-attempts', auth, quizCtrl.checkAttemptsLimit);
 
 // ─── CATEGORIES ───────────────────────────────────────────────
 router.get('/categories', quizCtrl.getCategories);
@@ -56,7 +58,8 @@ router.post('/creator/quizzes', auth, upload.single('cover'), creatorCtrl.create
 router.get('/creator/quizzes/:id', auth, creatorCtrl.getQuizForEdit);
 router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
-router.use('/api', require('./violations'));
 
+// ─── VIOLATIONS LOGGING ───────────────────────────────────────
+router.use('/api', require('./violations'));
 
 module.exports = router;
