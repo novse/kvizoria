@@ -27,9 +27,7 @@ export default function Navbar() {
           {user && (
             <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>Профиль</Link>
           )}
-          {user?.role === 'admin' && (
-            <Link to="/admin" className={`nav-link nav-admin ${isActive('/admin') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>Панель</Link>
-          )}
+
           {user?.role === 'creator' && (
   <Link to="/creator/quizzes">📋 Мои квизы</Link>
 )}
