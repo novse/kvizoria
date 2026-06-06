@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const { pool } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 
 // ─── GET ALL QUIZZES (public feed) ───────────────────────────
