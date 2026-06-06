@@ -24,6 +24,7 @@ router.post('/quizzes', auth, upload.single('cover'), quizCtrl.createQuiz);
 router.post('/quizzes/:uuid/publish', auth, quizCtrl.publishQuiz);
 router.post('/quizzes/:uuid/attempt', auth, quizCtrl.submitAttempt);
 router.get('/quizzes/:uuid/leaderboard', quizCtrl.getLeaderboard);
+router.get('/quizzes/:uuid/check-attempts', auth, quizController.checkAttemptsLimit);
 
 // ─── CATEGORIES ───────────────────────────────────────────────
 router.get('/categories', quizCtrl.getCategories);
@@ -55,6 +56,7 @@ router.post('/creator/quizzes', auth, upload.single('cover'), creatorCtrl.create
 router.get('/creator/quizzes/:id', auth, creatorCtrl.getQuizForEdit);
 router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
+router.use('/api', require('./violations'));
 
 
 module.exports = router;
