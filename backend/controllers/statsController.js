@@ -1,4 +1,4 @@
-const db = require('../config/db');
+const pool = require('../config/db');
 
 exports.getAdminStats = async (req, res) => {
   try {
