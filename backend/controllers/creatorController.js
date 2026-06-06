@@ -19,7 +19,7 @@ exports.createQuiz = async (req, res) => {
     const { title, description, quiz_type, time_limit, questions } = req.body;
     
     const [result] = await pool.query(
-      'INSERT INTO quizzes (title, description, quiz_type, time_limit, creator_id, is_published) VALUES (?, ?, ?, ?, ?, false)',
+      'INSERT INTO quizzes (title, description, quiz_type, time_limit, creator_id, is_published) VALUES (?, ?, ?, ?, ?, true)',
       [title, description, quiz_type, time_limit, req.user.id]
     );
     
@@ -57,10 +57,16 @@ exports.getQuizForEdit = async (req, res) => {
     );
     if (quizzes.length === 0) return res.status(404).json({ error: 'Не найден' });
     
-    const [questions] = await pool.query('SELECT * FROM questions WHERE quiz_id = ?', [req.params.id]);
+    const [questions] = await pool.query(
+      'SELECT * FROM questions WHERE quiz_id = ? ORDER BY order_num',
+      [req.params.id]
+    );
     for (const q of questions) {
-      const [options] = await pool.query('SELECT option_text, option_index FROM options WHERE question_id = ? ORDER BY option_index', [q.id]);
-      q.options = options.map(o => o.option_text);
+      const [answers] = await pool.query(
+        'SELECT id, text, is_correct FROM answers WHERE question_id = ? ORDER BY id',
+        [q.id]
+      );
+      q.answers = answers;
     }
     
     res.json({ ...quizzes[0], questions });
