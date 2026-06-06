@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { pool } = require('../config/database');
 const authCtrl = require('../controllers/authController');
 const quizCtrl = require('../controllers/quizController');
 const adminCtrl = require('../controllers/adminController');
@@ -8,8 +9,6 @@ const upload = require('../middleware/upload');
 const exportController = require('../controllers/exportController');
 const creatorCtrl = require('../controllers/creatorController');
 const statsController = require('../controllers/statsController');
-
-// НЕ ДОБАВЛЯЙТЕ const pool = require('../config/db') ЗДЕСЬ!
 
 // ─── AUTH ─────────────────────────────────────────────────────
 router.post('/auth/register', authCtrl.register);
@@ -27,6 +26,30 @@ router.post('/quizzes/:uuid/publish', auth, quizCtrl.publishQuiz);
 router.post('/quizzes/:uuid/attempt', auth, quizCtrl.submitAttempt);
 router.get('/quizzes/:uuid/leaderboard', quizCtrl.getLeaderboard);
 router.get('/quizzes/:uuid/check-attempts', auth, quizCtrl.checkAttemptsLimit);
+
+// ─── VIOLATIONS LOGGING ───────────────────────────────────────
+router.post('/quizzes/:uuid/violation', auth, async (req, res) => {
+    try {
+        const { uuid } = req.params;
+        const { type, timestamp } = req.body;
+        
+        const [[quiz]] = await pool.query('SELECT id FROM quizzes WHERE uuid = ?', [uuid]);
+        if (!quiz) {
+            return res.status(404).json({ error: 'Quiz not found' });
+        }
+        
+        await pool.query(
+            `INSERT INTO violations_log (user_id, quiz_id, violation_type, description, created_at)
+             VALUES (?, ?, ?, ?, FROM_UNIXTIME(?/1000))`,
+            [req.user.id, quiz.id, type, `Обнаружено нарушение: ${type}`, timestamp || Date.now()]
+        );
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Violation log error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ─── CATEGORIES ───────────────────────────────────────────────
 router.get('/categories', quizCtrl.getCategories);
@@ -57,29 +80,5 @@ router.post('/creator/quizzes', auth, upload.single('cover'), creatorCtrl.create
 router.get('/creator/quizzes/:id', auth, creatorCtrl.getQuizForEdit);
 router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
-
-// ─── VIOLATIONS LOGGING ───────────────────────────────────────
-// ВАЖНО: используем pool из db.js через require ВНУТРИ обработчика
-router.post('/quizzes/:uuid/violation', auth, async (req, res) => {
-    try {
-        const pool = require('../config/db');  // ← require ВНУТРИ, а не снаружи
-        const { uuid } = req.params;
-        const { type, timestamp } = req.body;
-        
-        const [[quiz]] = await pool.query('SELECT id FROM quizzes WHERE uuid = ?', [uuid]);
-        if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
-        
-        await pool.query(
-            `INSERT INTO violations_log (user_id, quiz_id, violation_type, description, created_at)
-             VALUES (?, ?, ?, ?, FROM_UNIXTIME(?/1000))`,
-            [req.user.id, quiz.id, type, `Обнаружено нарушение: ${type}`, timestamp || Date.now()]
-        );
-        
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Violation log error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
 
 module.exports = router;
