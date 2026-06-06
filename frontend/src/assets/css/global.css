@@ -250,3 +250,32 @@ textarea.input { resize: vertical; min-height: 100px; }
   .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
 }
+/* Стили для select на тёмном фоне */
+select.input {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+select.input option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 10px;
+}
+
+select.input option:checked {
+  background-color: var(--purple);
+  color: white;
+}
+
+/* Для браузеров на WebKit (Chrome, Edge, Safari) */
+select.input option:hover {
+  background-color: var(--purple);
+  color: white;
+}
+
+/* Убираем стандартный синий фон при фокусе на option */
+select.input:focus {
+  outline: none;
+  border-color: var(--purple);
+}
