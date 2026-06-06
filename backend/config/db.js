@@ -1,17 +1,18 @@
 const mysql = require('mysql2/promise');
-
-const getEnv = (primary, fallback, defaultValue) => process.env[primary] || process.env[fallback] || defaultValue;
+require('dotenv').config();
 
 const pool = mysql.createPool({
-  host: getEnv('DB_HOST', 'MYSQLHOST', 'localhost'),
-  port: parseInt(getEnv('DB_PORT', 'MYSQLPORT', '3306'), 10),
-  user: getEnv('DB_USER', 'MYSQLUSER', 'root'),
-  password: getEnv('DB_PASSWORD', 'MYSQLPASSWORD', ''),
-  database: getEnv('DB_NAME', 'MYSQLDATABASE', 'railway'),
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0,
-  charset: 'utf8mb4'
+  queueLimit: 0
 });
 
+// Экспортируем и как pool, и как db для обратной совместимости
 module.exports = pool;
+module.exports.pool = pool;
+module.exports.db = pool;  // ← добавляем alias
