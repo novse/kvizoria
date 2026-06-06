@@ -41,8 +41,24 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  // Новая функция: проверка лимита попыток для квиза
+  const checkAttemptsLimit = async (quizUuid) => {
+    try {
+      const response = await api.get(`/quizzes/${quizUuid}/check-attempts`);
+      return response.data;
+    } catch (err) {
+      if (err.response?.status === 403) {
+        return { allowed: false, message: err.response.data.message };
+      }
+      throw err;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, setUser }}>
+    <AuthContext.Provider value={{ 
+      user, login, register, logout, loading, setUser,
+      checkAttemptsLimit  // добавляем новую функцию
+    }}>
       {children}
     </AuthContext.Provider>
   );
