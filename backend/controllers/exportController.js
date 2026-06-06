@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const { pool } = require('../config/database');
 const ExcelJS = require('exceljs');
 
 exports.exportResultsToExcel = async (req, res) => {
