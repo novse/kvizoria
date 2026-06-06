@@ -85,60 +85,118 @@ exports.deleteCategory = async (req, res) => {
   res.json({ message: 'Категория удалена' });
 };
 
-// Создание квиза (админ)
+// ─── CREATE QUIZ (ADMIN) ─────────────────────────────────────
 exports.createQuizAdmin = async (req, res) => {
     try {
-        const { title, description, questions, category_id, quiz_type, time_limit } = req.body;
+        const { title, description, category_id, quiz_type, difficulty, time_limit, max_attempts,
+                is_public, shuffle_questions, shuffle_answers, pass_score, questions } = req.body;
+        const cover_image = req.file ? `/uploads/${req.file.filename}` : null;
         const uuid = require('uuid').v4();
         
-        const [result] = await db.query(
-            `INSERT INTO quizzes (uuid, title, description, questions, category_id, quiz_type, time_limit, created_by, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
-            [uuid, title, description, JSON.stringify(questions), category_id, quiz_type, time_limit, req.user.id]
-        );
-        
-        res.status(201).json({ id: result.insertId, uuid, message: 'Квиз создан' });
+        const [result] = await pool.query(`
+            INSERT INTO quizzes (uuid, title, description, cover_image, category_id, author_id,
+                quiz_type, difficulty, time_limit, max_attempts, is_public, shuffle_questions,
+                shuffle_answers, pass_score, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        `, [uuid, title, description, cover_image, category_id || null, req.user.id,
+            quiz_type || 'classic', difficulty || 'medium', time_limit || null,
+            max_attempts || 3, is_public !== false ? 1 : 0,
+            shuffle_questions !== false ? 1 : 0, shuffle_answers !== false ? 1 : 0, pass_score || 60]);
+
+        const quizId = result.insertId;
+
+        if (questions && Array.isArray(questions)) {
+            for (let i = 0; i < questions.length; i++) {
+                const q = questions[i];
+                const [qRes] = await pool.query(
+                    'INSERT INTO questions (quiz_id, text, question_type, explanation, points, order_num) VALUES (?, ?, ?, ?, ?, ?)',
+                    [quizId, q.text, q.type || 'single', q.explanation || null, q.points || 1, i]
+                );
+                if (q.answers) {
+                    for (const a of q.answers) {
+                        await pool.query(
+                            'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
+                            [qRes.insertId, a.text, a.is_correct ? 1 : 0]
+                        );
+                    }
+                }
+            }
+        }
+        res.status(201).json({ id: quizId, uuid, message: 'Квиз создан' });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
 
-// Получение квиза для редактирования
+// ─── GET QUIZ FOR EDIT (ADMIN) ───────────────────────────────
 exports.getQuizForEdit = async (req, res) => {
     try {
         const { id } = req.params;
-        const [quizzes] = await db.query(`SELECT * FROM quizzes WHERE id = ?`, [id]);
+        const [[quiz]] = await pool.query(`SELECT * FROM quizzes WHERE id = ?`, [id]);
+        if (!quiz) return res.status(404).json({ error: 'Квиз не найден' });
         
-        if (quizzes.length === 0) {
-            return res.status(404).json({ error: 'Квиз не найден' });
+        const [questions] = await pool.query(
+            'SELECT id, text, image, question_type, explanation, points, time_limit, order_num FROM questions WHERE quiz_id = ? ORDER BY order_num',
+            [quiz.id]
+        );
+        for (const q of questions) {
+            const [answers] = await pool.query(
+                'SELECT id, text, is_correct FROM answers WHERE question_id = ? ORDER BY id',
+                [q.id]
+            );
+            q.answers = answers;
         }
-        
-        const quiz = quizzes[0];
-        if (quiz.questions) {
-            quiz.questions = typeof quiz.questions === 'string' ? JSON.parse(quiz.questions) : quiz.questions;
-        }
-        
+        quiz.questions = questions;
         res.json(quiz);
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
 
-// Обновление квиза
+// ─── UPDATE QUIZ (ADMIN) ─────────────────────────────────────
 exports.updateQuiz = async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, questions, category_id, quiz_type, time_limit } = req.body;
+        const { title, description, category_id, quiz_type, difficulty, time_limit, max_attempts,
+                is_public, shuffle_questions, shuffle_answers, pass_score, questions } = req.body;
         
-        await db.query(
-            `UPDATE quizzes 
-             SET title = ?, description = ?, questions = ?, category_id = ?, quiz_type = ?, time_limit = ?, updated_at = NOW()
-             WHERE id = ?`,
-            [title, description, JSON.stringify(questions), category_id, quiz_type, time_limit, id]
-        );
+        await pool.query(`
+            UPDATE quizzes 
+            SET title = ?, description = ?, category_id = ?, quiz_type = ?, difficulty = ?,
+                time_limit = ?, max_attempts = ?, is_public = ?, shuffle_questions = ?,
+                shuffle_answers = ?, pass_score = ?
+            WHERE id = ?
+        `, [title, description, category_id, quiz_type, difficulty, time_limit, max_attempts,
+            is_public !== false ? 1 : 0, shuffle_questions !== false ? 1 : 0,
+            shuffle_answers !== false ? 1 : 0, pass_score || 60, id]);
+        
+        // Удаляем старые вопросы и ответы
+        await pool.query('DELETE FROM answers WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = ?)', [id]);
+        await pool.query('DELETE FROM questions WHERE quiz_id = ?', [id]);
+        
+        if (questions && Array.isArray(questions)) {
+            for (let i = 0; i < questions.length; i++) {
+                const q = questions[i];
+                const [qRes] = await pool.query(
+                    'INSERT INTO questions (quiz_id, text, question_type, explanation, points, order_num) VALUES (?, ?, ?, ?, ?, ?)',
+                    [id, q.text, q.type || 'single', q.explanation || null, q.points || 1, i]
+                );
+                if (q.answers) {
+                    for (const a of q.answers) {
+                        await pool.query(
+                            'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
+                            [qRes.insertId, a.text, a.is_correct ? 1 : 0]
+                        );
+                    }
+                }
+            }
+        }
         
         res.json({ message: 'Квиз обновлён' });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
