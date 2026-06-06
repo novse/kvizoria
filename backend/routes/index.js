@@ -9,6 +9,8 @@ const exportController = require('../controllers/exportController');
 const creatorCtrl = require('../controllers/creatorController');
 const statsController = require('../controllers/statsController');
 
+// НЕ ДОБАВЛЯЙТЕ const pool = require('../config/db') ЗДЕСЬ!
+
 // ─── AUTH ─────────────────────────────────────────────────────
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/login', authCtrl.login);
@@ -24,7 +26,7 @@ router.post('/quizzes', auth, upload.single('cover'), quizCtrl.createQuiz);
 router.post('/quizzes/:uuid/publish', auth, quizCtrl.publishQuiz);
 router.post('/quizzes/:uuid/attempt', auth, quizCtrl.submitAttempt);
 router.get('/quizzes/:uuid/leaderboard', quizCtrl.getLeaderboard);
-router.get('/quizzes/:uuid/check-attempts', auth, quizCtrl.checkAttemptsLimit);  // ← НОВЫЙ РОУТ
+router.get('/quizzes/:uuid/check-attempts', auth, quizCtrl.checkAttemptsLimit);
 
 // ─── CATEGORIES ───────────────────────────────────────────────
 router.get('/categories', quizCtrl.getCategories);
@@ -57,11 +59,10 @@ router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
 
 // ─── VIOLATIONS LOGGING ───────────────────────────────────────
-// ВАЖНО: ЭТОТ РОУТ ДОЛЖЕН БЫТЬ ПОСЛЕДНИМ, ЧТОБЫ НЕ ПЕРЕКРЫВАТЬ ДРУГИЕ
+// ВАЖНО: используем pool из db.js через require ВНУТРИ обработчика
 router.post('/quizzes/:uuid/violation', auth, async (req, res) => {
-    // Временное решение — напрямую в index.js, чтобы избежать цикла
     try {
-        const pool = require('../config/db');
+        const pool = require('../config/db');  // ← require ВНУТРИ, а не снаружи
         const { uuid } = req.params;
         const { type, timestamp } = req.body;
         
