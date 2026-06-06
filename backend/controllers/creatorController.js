@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const { pool } = require('../config/database');
 
 // Получить квизы текущего пользователя
 exports.getMyQuizzes = async (req, res) => {
