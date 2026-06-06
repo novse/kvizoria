@@ -2,8 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const initDatabase = require('./config/initDb');
-const pool = require('./config/db');  // ← ДОБАВИТЬ ЭТУ СТРОКУ
+const { pool, initDatabase } = require('./config/database');  // ← ИЗМЕНЕНО
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -42,12 +41,7 @@ app.get('*', (req, res) => {
 async function start() {
   try {
     console.log('🚀 Запуск сервера Квизория...');
-    console.log('🔄 Подключение к базе данных...');
-    
     await initDatabase();
-    
-    console.log('✅ База данных готова');
-    
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Квизория запущена на порту ${PORT}`);
       console.log(`🌐 Сайт: http://0.0.0.0:${PORT}`);
