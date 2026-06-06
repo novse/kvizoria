@@ -1,37 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../utils/api';
 import './Profile.css';
 
-const EXAMPLE_QUIZ_QUESTIONS = [
-  {
-    text: 'Какой океан является самым большим на Земле?',
-    question_type: 'single',
-    points: 1,
-    explanation: 'Тихий океан — крупнейший по площади и объёму.',
-    answers: [
-      { text: 'Тихий океан', is_correct: true },
-      { text: 'Атлантический океан', is_correct: false },
-      { text: 'Индийский океан', is_correct: false },
-      { text: 'Северный Ледовитый океан', is_correct: false },
-    ],
-  },
-  {
-    text: 'Какие из этих языков являются JavaScript-фреймворками?',
-    question_type: 'multiple',
-    points: 2,
-    explanation: 'В этом примере можно отметить несколько вариантов.',
-    answers: [
-      { text: 'React', is_correct: true },
-      { text: 'Vue', is_correct: true },
-      { text: 'HTML', is_correct: false },
-      { text: 'Node.js', is_correct: false },
-    ],
-  },
-];
-
-const EXAMPLE_QUIZ_JSON = JSON.stringify(EXAMPLE_QUIZ_QUESTIONS, null, 2);
+const makeEmptyQuestion = () => ({
+  text: '',
+  answers: ['', '', '', ''],
+  correct: 0,
+});
 
 const initialQuizDraft = {
   title: '',
@@ -39,7 +16,7 @@ const initialQuizDraft = {
   category_id: '',
   quiz_type: 'classic',
   timeLimitMinutes: '',
-  questionsJson: EXAMPLE_QUIZ_JSON,
+  questions: [makeEmptyQuestion()],
 };
 
 function getDisplayName(user) {
@@ -62,81 +39,8 @@ function normalizeCategoriesPayload(payload) {
   return [];
 }
 
-function buildQuestionsFromDraft(questionsJson) {
-  const parsed = JSON.parse(questionsJson);
 
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error('Добавьте хотя бы один вопрос');
-  }
 
-  return parsed.map((question, index) => {
-    const text = String(question?.text || question?.prompt || '').trim();
-    if (!text) {
-      throw new Error(`В вопросе ${index + 1} не заполнен текст`);
-    }
-
-    const answersSource = Array.isArray(question?.answers)
-      ? question.answers
-      : Array.isArray(question?.options)
-        ? question.options.map((option, optionIndex) => ({
-            text: option,
-            is_correct: optionIndex === Number(question?.answerIndex ?? question?.correctIndex ?? 0),
-          }))
-        : [];
-
-    if (!answersSource.length) {
-      throw new Error(`В вопросе ${index + 1} нет вариантов ответа`);
-    }
-
-    const answers = answersSource.map((answer, answerIndex) => ({
-      text: String(answer?.text || answer?.label || answer || '').trim(),
-      is_correct: Boolean(
-        answer?.is_correct ?? answer?.correct ?? answerIndex === Number(question?.answerIndex ?? question?.correctIndex ?? 0)
-      ),
-    }));
-
-    if (!answers.some((answer) => answer.is_correct)) {
-      throw new Error(`В вопросе ${index + 1} должен быть хотя бы один правильный ответ`);
-    }
-
-    return {
-      text,
-      question_type: question?.question_type || question?.type || 'single',
-      explanation: String(question?.explanation || '').trim() || null,
-      points: Number(question?.points || 1) || 1,
-      time_limit: question?.time_limit ? Number(question.time_limit) : null,
-      order_num: index,
-      answers,
-    };
-  });
-}
-
-function parseQuestionsFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      try {
-        const content = String(reader.result || '');
-        const parsed = JSON.parse(content);
-
-        if (!Array.isArray(parsed)) {
-          throw new Error('JSON-файл должен содержать массив вопросов');
-        }
-
-        resolve(content);
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    reader.onerror = () => {
-      reject(new Error('Не удалось прочитать JSON-файл'));
-    };
-
-    reader.readAsText(file);
-  });
-}
 
 function Profile() {
   const { user } = useAuth();
@@ -144,7 +48,6 @@ function Profile() {
   const isAdmin = role === 'admin';
   const canCreateQuiz = Boolean(user);
 
-  const questionsInputRef = useRef(null);
 
   const [history, setHistory] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -153,7 +56,6 @@ function Profile() {
   const [createLoading, setCreateLoading] = useState(false);
   const [createMessage, setCreateMessage] = useState('');
   const [createError, setCreateError] = useState('');
-  const [questionsFileName, setQuestionsFileName] = useState('');
   const [quizDraft, setQuizDraft] = useState(initialQuizDraft);
 
   useEffect(() => {
@@ -216,37 +118,38 @@ function Profile() {
     }));
   };
 
-  const handleDownloadExample = () => {
-    const blob = new Blob([EXAMPLE_QUIZ_JSON], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'quiz-example.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const addQuestion = () => {
+    setQuizDraft((cur) => ({ ...cur, questions: [...cur.questions, makeEmptyQuestion()] }));
   };
 
-  const handleQuestionsFileUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const removeQuestion = (idx) => {
+    setQuizDraft((cur) => ({ ...cur, questions: cur.questions.filter((_, i) => i !== idx) }));
+  };
 
-    setCreateError('');
-    try {
-      const content = await parseQuestionsFile(file);
-      setQuizDraft((current) => ({
-        ...current,
-        questionsJson: content,
-      }));
-      setQuestionsFileName(file.name);
-      setCreateMessage(`Файл ${file.name} загружен`);
-    } catch (error) {
-      setQuestionsFileName('');
-      setCreateError(error?.message || 'Не удалось загрузить JSON-файл');
-    } finally {
-      event.target.value = '';
-    }
+  const updateQuestion = (idx, text) => {
+    setQuizDraft((cur) => {
+      const qs = [...cur.questions];
+      qs[idx] = { ...qs[idx], text };
+      return { ...cur, questions: qs };
+    });
+  };
+
+  const updateAnswer = (qIdx, aIdx, text) => {
+    setQuizDraft((cur) => {
+      const qs = [...cur.questions];
+      const answers = [...qs[qIdx].answers];
+      answers[aIdx] = text;
+      qs[qIdx] = { ...qs[qIdx], answers };
+      return { ...cur, questions: qs };
+    });
+  };
+
+  const setCorrect = (qIdx, aIdx) => {
+    setQuizDraft((cur) => {
+      const qs = [...cur.questions];
+      qs[qIdx] = { ...qs[qIdx], correct: aIdx };
+      return { ...cur, questions: qs };
+    });
   };
 
   const handleCreateQuiz = async (event) => {
@@ -256,7 +159,18 @@ function Profile() {
     setCreateMessage('');
 
     try {
-      const questions = buildQuestionsFromDraft(quizDraft.questionsJson);
+      if (!quizDraft.questions.length) throw new Error('Добавьте хотя бы один вопрос');
+
+      const questions = quizDraft.questions.map((q, index) => {
+        const text = q.text.trim();
+        if (!text) throw new Error(`Заполните текст вопроса ${index + 1}`);
+        const answers = q.answers.map((a, aIdx) => ({
+          text: a.trim(),
+          is_correct: aIdx === q.correct,
+        }));
+        if (answers.some((a) => !a.text)) throw new Error(`Заполните все варианты ответа в вопросе ${index + 1}`);
+        return { text, question_type: 'single', points: 1, order_num: index, answers };
+      });
 
       const payload = {
         title: quizDraft.title.trim(),
@@ -275,8 +189,7 @@ function Profile() {
 
       const response = await api.post('/quizzes', payload);
       setCreateMessage(response?.data?.message || 'Квиз создан. Теперь он доступен в каталоге.');
-      setQuizDraft(initialQuizDraft);
-      setQuestionsFileName('');
+      setQuizDraft({ ...initialQuizDraft, questions: [makeEmptyQuestion()] });
     } catch (err) {
       setCreateError(err?.response?.data?.message || err?.message || 'Не удалось создать квиз');
     } finally {
@@ -296,7 +209,7 @@ function Profile() {
               {getDisplayName(user)}
             </h1>
             <p style={subtitleStyle}>
-              Смотрите историю прохождений и создавайте квизы из красивой формы с поддержкой JSON-файлов.
+              Смотрите историю прохождений и создавайте квизы через удобную форму.
             </p>
           </div>
 
@@ -364,7 +277,7 @@ function Profile() {
                 <div>
                   <h2 style={sectionTitleStyle}>Создать квиз</h2>
                   <p style={helperTextStyle}>
-                    Заполни поля вручную или загрузи готовый JSON. Для примера можно скачать шаблон ниже.
+                    Заполни поля и добавь вопросы с вариантами ответов.
                   </p>
                 </div>
                 {isAdmin ? (
@@ -372,23 +285,6 @@ function Profile() {
                     Админ-панель
                   </Link>
                 ) : null}
-              </div>
-
-              <div style={builderToolbarStyle}>
-                <button type="button" onClick={handleDownloadExample} style={secondaryButtonStyle}>
-                  Скачать пример JSON
-                </button>
-                <label style={secondaryButtonStyle}>
-                  <input
-                    ref={questionsInputRef}
-                    type="file"
-                    accept="application/json,.json"
-                    onChange={handleQuestionsFileUpload}
-                    style={{ display: 'none' }}
-                  />
-                  <span>Загрузить JSON-файл</span>
-                </label>
-                {questionsFileName ? <span style={fileBadgeStyle}>Файл: {questionsFileName}</span> : null}
               </div>
 
               <form onSubmit={handleCreateQuiz} style={formStyle}>
@@ -429,12 +325,12 @@ function Profile() {
                       onChange={(e) => handleDraftChange('quiz_type', e.target.value)}
                       style={inputStyle}
                     >
-                      <option value="classic">classic</option>
-                      <option value="timed">timed</option>
-                      <option value="picture">picture</option>
-                      <option value="learning">learning</option>
-                      <option value="open">open</option>
-                      <option value="team">team</option>
+                      <option value="classic">Классический</option>
+                      <option value="timed">На время</option>
+                      <option value="picture">С картинками</option>
+                      <option value="learning">Обучающий</option>
+                      <option value="open">Открытый</option>
+                      <option value="team">Командный</option>
                     </select>
                   </label>
 
@@ -471,30 +367,53 @@ function Profile() {
                   />
                 </label>
 
-                <label style={fieldStyle}>
-                  <span style={fieldLabelStyle}>Вопросы JSON</span>
-                  <textarea
-                    value={quizDraft.questionsJson}
-                    onChange={(e) => handleDraftChange('questionsJson', e.target.value)}
-                    rows={14}
-                    style={{ ...textareaStyle, minHeight: 260, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
-                  />
-                </label>
-
-                <div style={hintGridStyle}>
-                  <div style={hintCardStyle}>
-                    <div style={hintTitleStyle}>Как выглядит JSON</div>
-                    <p style={hintTextStyle}>
-                      Это массив вопросов. В каждом вопросе должен быть текст, варианты ответов и хотя бы один
-                      правильный ответ.
-                    </p>
-                  </div>
-                  <div style={hintCardStyle}>
-                    <div style={hintTitleStyle}>Подсказка</div>
-                    <p style={hintTextStyle}>
-                      Можно скачать пример, отредактировать его в любом редакторе и загрузить обратно одной кнопкой.
-                    </p>
-                  </div>
+                {/* Visual Question Builder */}
+                <div style={{ marginTop: 8 }}>
+                  <span style={fieldLabelStyle}>Вопросы</span>
+                  {quizDraft.questions.map((q, qIdx) => (
+                    <div key={qIdx} style={questionCardStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                        <span style={questionNumStyle}>{qIdx + 1}</span>
+                        <input
+                          value={q.text}
+                          onChange={(e) => updateQuestion(qIdx, e.target.value)}
+                          placeholder={`Текст вопроса ${qIdx + 1}`}
+                          required
+                          style={{ ...inputStyle, flex: 1, marginTop: 0 }}
+                        />
+                        {quizDraft.questions.length > 1 && (
+                          <button type="button" onClick={() => removeQuestion(qIdx)} style={removeQuestionBtnStyle} title="Удалить вопрос">✕</button>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {q.answers.map((ans, aIdx) => (
+                          <div key={aIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="radio"
+                              name={`correct_${qIdx}`}
+                              checked={q.correct === aIdx}
+                              onChange={() => setCorrect(qIdx, aIdx)}
+                              title="Правильный ответ"
+                              style={{ accentColor: '#7C3AED', flexShrink: 0, cursor: 'pointer' }}
+                            />
+                            <input
+                              value={ans}
+                              onChange={(e) => updateAnswer(qIdx, aIdx, e.target.value)}
+                              placeholder={`Вариант ${aIdx + 1}`}
+                              required
+                              style={{ ...inputStyle, marginTop: 0, fontSize: 14 }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: 12, color: 'rgba(167,139,250,0.6)', marginTop: 8 }}>
+                        🔘 Отметь правильный ответ
+                      </p>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addQuestion} style={addQuestionBtnStyle}>
+                    + Добавить вопрос
+                  </button>
                 </div>
 
                 {createError ? <div style={errorBoxStyle}>{createError}</div> : null}
@@ -663,36 +582,57 @@ const formStyle = {
   gap: 14,
 };
 
-const builderToolbarStyle = {
-  marginTop: 18,
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 10,
-  alignItems: 'center',
+
+const questionCardStyle = {
+  padding: 16,
+  borderRadius: 14,
+  border: '1px solid rgba(124, 58, 237, 0.2)',
+  background: 'rgba(124, 58, 237, 0.04)',
+  marginBottom: 12,
 };
 
-const secondaryButtonStyle = {
+const questionNumStyle = {
+  width: 28,
+  height: 28,
+  borderRadius: '50%',
+  background: 'rgba(124, 58, 237, 0.3)',
+  color: '#c4b5fd',
+  fontSize: 13,
+  fontWeight: 700,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 8,
-  padding: '12px 16px',
-  borderRadius: 14,
-  border: '1px solid rgba(142, 231, 200, 0.22)',
-  background: 'rgba(142, 231, 200, 0.06)',
-  color: '#e7fff5',
-  fontWeight: 700,
-  cursor: 'pointer',
-  textDecoration: 'none',
+  flexShrink: 0,
 };
 
-const fileBadgeStyle = {
-  padding: '10px 12px',
-  borderRadius: 999,
-  border: '1px solid rgba(255,255,255,0.08)',
-  background: 'rgba(255,255,255,0.04)',
-  color: '#b0bac7',
+const removeQuestionBtnStyle = {
+  background: 'rgba(239,68,68,0.12)',
+  border: '1px solid rgba(239,68,68,0.25)',
+  color: '#f87171',
+  borderRadius: 8,
+  width: 28,
+  height: 28,
+  cursor: 'pointer',
   fontSize: 13,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};
+
+const addQuestionBtnStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '10px 18px',
+  borderRadius: 12,
+  border: '1px solid rgba(124, 58, 237, 0.35)',
+  background: 'rgba(124, 58, 237, 0.08)',
+  color: '#c4b5fd',
+  fontWeight: 700,
+  cursor: 'pointer',
+  fontSize: 14,
+  marginTop: 4,
 };
 
 const heroInputGridStyle = {
@@ -755,31 +695,6 @@ const textareaStyle = {
   minHeight: 92,
 };
 
-const hintGridStyle = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  gap: 12,
-};
-
-const hintCardStyle = {
-  padding: 16,
-  borderRadius: 18,
-  border: '1px solid rgba(255,255,255,0.08)',
-  background: 'rgba(255,255,255,0.03)',
-};
-
-const hintTitleStyle = {
-  fontSize: 14,
-  fontWeight: 800,
-  marginBottom: 8,
-  color: '#f4f7fb',
-};
-
-const hintTextStyle = {
-  margin: 0,
-  color: '#b0bac7',
-  lineHeight: 1.55,
-};
 
 const errorBoxStyle = {
   padding: 14,
