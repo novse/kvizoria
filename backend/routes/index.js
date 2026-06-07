@@ -76,10 +76,10 @@ router.put('/admin/quizzes/:id', auth, adminOnly, adminCtrl.updateQuiz);
 router.get('/admin/stats', auth, adminOnly, statsController.getAdminStats);
 
 // ─── CREATOR ─────────────────────────────────────────────────
-router.get('/creator/quizzes', auth, creatorCtrl.getMyQuizzes);
-router.post('/creator/quizzes', auth, upload.single('cover'), creatorCtrl.createQuiz);
-router.get('/creator/quizzes/:id', auth, creatorCtrl.getQuizForEdit);
-router.put('/creator/quizzes/:id', auth, creatorCtrl.updateQuiz);
-router.delete('/creator/quizzes/:id', auth, creatorCtrl.deleteQuiz);
+router.get('/creator/quizzes', auth, creatorOrAdmin, creatorCtrl.getMyQuizzes);
+router.post('/creator/quizzes', auth, creatorOrAdmin, upload.single('cover'), creatorCtrl.createQuiz);
+router.get('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.getQuizForEdit);
+router.put('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.updateQuiz);
+router.delete('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.deleteQuiz);
 
 module.exports = router;
