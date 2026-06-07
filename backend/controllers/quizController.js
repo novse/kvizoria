@@ -84,11 +84,12 @@ exports.createQuiz = async (req, res) => {
     const cover_image = req.file ? `/uploads/${req.file.filename}` : null;
 
     const uuid = uuidv4();
+    // Квиз создаётся в статусе черновика (is_published=0)
     const [result] = await pool.query(`
       INSERT INTO quizzes (uuid, title, description, cover_image, category_id, author_id,
         quiz_type, difficulty, time_limit, max_attempts, is_public, shuffle_questions,
         shuffle_answers, pass_score, is_published)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `, [uuid, title, description, cover_image, category_id || null, req.user.id,
         quiz_type || 'classic', difficulty || 'medium', time_limit || null,
         max_attempts || 3, is_public !== false ? 1 : 0,
@@ -142,7 +143,6 @@ exports.submitAttempt = async (req, res) => {
     );
     if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
 
-    // Проверяем лимит попыток
     const [[{ cnt }]] = await pool.query(
       'SELECT COUNT(*) AS cnt FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?',
       [quiz.id, req.user.id]
@@ -181,7 +181,6 @@ exports.submitAttempt = async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [attemptUuid, quiz.id, req.user.id, score, maxScore, percent, time_spent || 0, isPassed, violationsCount]);
 
-    // Сохраняем ответы
     for (const q of questions) {
       const userAnswer = answersData[q.id];
       if (userAnswer) {
@@ -193,7 +192,6 @@ exports.submitAttempt = async (req, res) => {
       }
     }
 
-    // Логируем нарушения
     if (violations && violations.length > 0) {
       for (const v of violations) {
         await pool.query(
@@ -203,7 +201,6 @@ exports.submitAttempt = async (req, res) => {
       }
     }
 
-    // Обновляем лидерборд
     await pool.query(`
       INSERT INTO leaderboard (quiz_id, user_id, best_score, best_percent, best_time, attempts_count)
       VALUES (?, ?, ?, ?, ?, 1)
@@ -214,10 +211,8 @@ exports.submitAttempt = async (req, res) => {
         attempts_count = attempts_count + 1
     `, [quiz.id, req.user.id, score, percent, time_spent || 0]);
 
-    // Обновляем счётчик
     await pool.query('UPDATE quizzes SET plays_count = plays_count + 1 WHERE id = ?', [quiz.id]);
 
-    // Получаем правильные ответы для результатов
     const [allAnswers] = await pool.query(`
       SELECT a.id, a.question_id, a.text, a.is_correct,
              q.text AS question_text, q.explanation
@@ -225,12 +220,7 @@ exports.submitAttempt = async (req, res) => {
       WHERE q.quiz_id = ?
     `, [quiz.id]);
 
-    res.json({
-      score, maxScore, percent, isPassed,
-      attemptUuid,
-      answers: allAnswers,
-      violationsCount
-    });
+    res.json({ score, maxScore, percent, isPassed, attemptUuid, answers: allAnswers, violationsCount });
   } catch (err) {
     res.status(500).json({ message: 'Ошибка отправки ответов', error: err.message });
   }
@@ -271,27 +261,18 @@ exports.getUserHistory = async (req, res) => {
   `, [req.user.id]);
   res.json(rows);
 };
+
 // ─── CHECK ATTEMPTS LIMIT ─────────────────────────────────────
 exports.checkAttemptsLimit = async (req, res) => {
   try {
     const { uuid } = req.params;
-    
-    const [[quiz]] = await pool.query(
-      'SELECT id, max_attempts FROM quizzes WHERE uuid = ?',
-      [uuid]
-    );
-    
-    if (!quiz) {
-      return res.status(404).json({ message: 'Квиз не найден' });
-    }
-    
+    const [[quiz]] = await pool.query('SELECT id, max_attempts FROM quizzes WHERE uuid = ?', [uuid]);
+    if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
     const [[attempts]] = await pool.query(
       'SELECT COUNT(*) as count FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?',
       [quiz.id, req.user.id]
     );
-    
     const remaining = Math.max(0, quiz.max_attempts - attempts.count);
-    
     res.json({
       allowed: attempts.count < quiz.max_attempts,
       attemptsLeft: remaining,
