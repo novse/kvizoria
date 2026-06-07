@@ -27,10 +27,12 @@ export default function Navbar() {
           {user && (
             <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>Профиль</Link>
           )}
-
           {user?.role === 'creator' && (
-  <Link to="/creator/quizzes">📋 Мои квизы</Link>
-)}
+            <>
+              <Link to="/creator/quizzes" className="nav-link" onClick={() => setMenuOpen(false)}>📋 Мои квизы</Link>
+              <Link to="/creator/results" className="nav-link" onClick={() => setMenuOpen(false)}>📊 Результаты</Link>
+            </>
+          )}
         </div>
 
         <div className="navbar-actions">
@@ -43,7 +45,7 @@ export default function Navbar() {
               )}
               {user?.role === 'admin' && (
                 <Link to="/admin" className="btn btn-outline btn-sm">
-                  Редактировать
+                  Панель
                 </Link>
               )}
             </div>
