@@ -4,7 +4,7 @@ const { pool } = require('../config/database');
 exports.getMyQuizzes = async (req, res) => {
   try {
     const [quizzes] = await pool.query(
-      'SELECT * FROM quizzes WHERE creator_id = ? ORDER BY created_at DESC',
+      'SELECT * FROM quizzes WHERE author_id = ? ORDER BY created_at DESC',
       [req.user.id]
     );
     res.json(quizzes);
@@ -16,32 +16,47 @@ exports.getMyQuizzes = async (req, res) => {
 // Создать квиз
 exports.createQuiz = async (req, res) => {
   try {
-    const { title, description, quiz_type, time_limit, questions } = req.body;
-    
+    const { title, description, quiz_type, difficulty, time_limit, category_id } = req.body;
+
+    let questions = req.body.questions;
+    if (typeof questions === 'string') {
+      try { questions = JSON.parse(questions); } catch(e) { questions = []; }
+    }
+
+    const cover_image = req.file ? `/uploads/${req.file.filename}` : null;
+
+    if (!title) return res.status(400).json({ message: 'Название обязательно' });
+    if (!Array.isArray(questions) || questions.length === 0)
+      return res.status(400).json({ message: 'Добавьте хотя бы один вопрос' });
+
     const [result] = await pool.query(
-      'INSERT INTO quizzes (title, description, quiz_type, time_limit, creator_id, is_published) VALUES (?, ?, ?, ?, ?, true)',
-      [title, description, quiz_type, time_limit, req.user.id]
+      `INSERT INTO quizzes (title, description, cover_image, quiz_type, difficulty, time_limit,
+        category_id, author_id, is_published)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      [title, description || null, cover_image, quiz_type || 'classic',
+       difficulty || 'medium', time_limit || null, category_id || null, req.user.id]
     );
-    
+
     const quizId = result.insertId;
-    
+
     for (let idx = 0; idx < questions.length; idx++) {
       const q = questions[idx];
       const [qResult] = await pool.query(
-        'INSERT INTO questions (quiz_id, text, correct_index) VALUES (?, ?, ?)',
-        [quizId, q.text, q.correct]
+        `INSERT INTO questions (quiz_id, text, question_type, explanation, time_limit, points, order_num)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [quizId, q.text, q.question_type || 'single', q.explanation || null,
+         q.time_limit || null, q.points || 1, idx]
       );
-      
       const questionId = qResult.insertId;
-      for (let i = 0; i < q.options.length; i++) {
+      for (const a of (q.answers || [])) {
         await pool.query(
           'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
-          [questionId, q.options[i], i === q.correct ? 1 : 0]
+          [questionId, a.text, a.is_correct ? 1 : 0]
         );
       }
     }
-    
-    res.status(201).json({ id: quizId, message: 'Квиз создан' });
+
+    res.status(201).json({ message: 'Квиз создан и опубликован' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -52,7 +67,7 @@ exports.createQuiz = async (req, res) => {
 exports.getQuizForEdit = async (req, res) => {
   try {
     const [quizzes] = await pool.query(
-      'SELECT * FROM quizzes WHERE id = ? AND creator_id = ?',
+      'SELECT * FROM quizzes WHERE id = ? AND author_id = ?',
       [req.params.id, req.user.id]
     );
     if (quizzes.length === 0) return res.status(404).json({ error: 'Не найден' });
@@ -81,7 +96,7 @@ exports.updateQuiz = async (req, res) => {
     const { title, description, quiz_type, time_limit, questions } = req.body;
     
     await pool.query(
-      'UPDATE quizzes SET title = ?, description = ?, quiz_type = ?, time_limit = ? WHERE id = ? AND creator_id = ?',
+      'UPDATE quizzes SET title = ?, description = ?, quiz_type = ?, time_limit = ? WHERE id = ? AND author_id = ?',
       [title, description, quiz_type, time_limit, req.params.id, req.user.id]
     );
     
@@ -111,7 +126,7 @@ exports.updateQuiz = async (req, res) => {
 // Удалить квиз
 exports.deleteQuiz = async (req, res) => {
   try {
-    await pool.query('DELETE FROM quizzes WHERE id = ? AND creator_id = ?', [req.params.id, req.user.id]);
+    await pool.query('DELETE FROM quizzes WHERE id = ? AND author_id = ?', [req.params.id, req.user.id]);
     res.json({ message: 'Удалён' });
   } catch (err) {
     res.status(500).json({ error: err.message });
