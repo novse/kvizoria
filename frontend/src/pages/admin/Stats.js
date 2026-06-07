@@ -1,142 +1,140 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 
-export default function CreateQuiz() {
-  const navigate = useNavigate();
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    quiz_type: 'classic',
-    time_limit: 300,
-    questions: [
-      { text: '', options: ['', '', '', ''], correct: 0 }
-    ]
-  });
-  const [loading, setLoading] = useState(false);
+export default function Stats() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const addQuestion = () => {
-    setForm({
-      ...form,
-      questions: [...form.questions, { text: '', options: ['', '', '', ''], correct: 0 }]
-    });
-  };
+  useEffect(() => {
+    api.get('/admin/stats')
+      .then(r => setData(r.data))
+      .catch(e => setError(e?.response?.data?.message || 'Не удалось загрузить статистику'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const updateQuestion = (idx, field, value) => {
-    const newQuestions = [...form.questions];
-    newQuestions[idx][field] = value;
-    setForm({ ...form, questions: newQuestions });
-  };
-
-  const updateOption = (qIdx, oIdx, value) => {
-    const newQuestions = [...form.questions];
-    newQuestions[qIdx].options[oIdx] = value;
-    setForm({ ...form, questions: newQuestions });
-  };
-
-  const submitQuiz = async () => {
-    if (!form.title) return alert('Введите название');
-    setLoading(true);
+  const handleExcel = async () => {
     try {
-      const res = await api.post('/quizzes', form);
-      navigate('/creator/quizzes');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Ошибка создания');
-    } finally {
-      setLoading(false);
+      const res = await api.get('/admin/export', { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kvizoria-results.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Не удалось скачать файл');
     }
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: 20 }}>
-      <h1>Создание квиза</h1>
+    <div style={page}>
+      <div style={container}>
 
-      <div style={fieldStyle}>
-        <label>Название *</label>
-        <input
-          type="text"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          style={inputStyle}
-        />
-      </div>
-
-      <div style={fieldStyle}>
-        <label>Описание</label>
-        <textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          style={inputStyle}
-        />
-      </div>
-
-      <div style={fieldStyle}>
-        <label>Тип квиза</label>
-        <select
-          value={form.quiz_type}
-          onChange={(e) => setForm({ ...form, quiz_type: e.target.value })}
-          style={inputStyle}
-        >
-          <option value="classic">Классический</option>
-          <option value="timed">На время</option>
-          <option value="picture">С картинками</option>
-        </select>
-      </div>
-
-      <div style={fieldStyle}>
-        <label>Время на прохождение (секунд)</label>
-        <input
-          type="number"
-          value={form.time_limit}
-          onChange={(e) => setForm({ ...form, time_limit: +e.target.value })}
-          style={inputStyle}
-        />
-      </div>
-
-      <hr />
-
-      <h3>Вопросы:</h3>
-      {form.questions.map((q, qIdx) => (
-        <div key={qIdx} style={cardStyle}>
-          <input
-            placeholder="Текст вопроса"
-            value={q.text}
-            onChange={(e) => updateQuestion(qIdx, 'text', e.target.value)}
-            style={inputStyle}
-          />
-          <div style={{ marginTop: 12 }}>
-            {q.options.map((opt, oIdx) => (
-              <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <input
-                  type="radio"
-                  name={`correct_${qIdx}`}
-                  checked={q.correct === oIdx}
-                  onChange={() => updateQuestion(qIdx, 'correct', oIdx)}
-                />
-                <input
-                  placeholder={`Вариант ${oIdx + 1}`}
-                  value={opt}
-                  onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-              </div>
-            ))}
-          </div>
+        <div style={header}>
+          <Link to="/admin" style={backBtn}>← Назад в панель</Link>
+          <h1 style={title}>📊 Статистика платформы</h1>
         </div>
-      ))}
 
-      <button onClick={addQuestion} style={{ ...buttonStyle, background: '#2196f3', marginRight: 12 }}>
-        + Добавить вопрос
-      </button>
+        {loading && <div style={card}>Загружаем данные…</div>}
+        {error && <div style={{ ...card, borderColor: 'rgba(239,68,68,0.3)', color: '#fca5a5' }}>⚠️ {error}</div>}
 
-      <button onClick={submitQuiz} disabled={loading} style={buttonStyle}>
-        {loading ? 'Создаём...' : '📤 Сохранить квиз'}
-      </button>
+        {data && (
+          <>
+            {/* Карточки с цифрами */}
+            <div style={statsGrid}>
+              {[
+                { icon: '👥', label: 'Пользователей', value: data.totalUsers, color: '#7C3AED' },
+                { icon: '🗂️', label: 'Квизов',         value: data.totalQuizzes, color: '#14B8A6' },
+                { icon: '🎯', label: 'Пройдено раз',   value: data.totalAttempts, color: '#F59E0B' },
+                { icon: '⭐', label: 'Средний балл',   value: Number(data.avgScore || 0).toFixed(1), color: '#EC4899' },
+              ].map(s => (
+                <div key={s.label} style={{ ...card, textAlign: 'center' }}>
+                  <div style={{ fontSize: 36, marginBottom: 8 }}>{s.icon}</div>
+                  <div style={{ fontSize: 36, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Популярные квизы */}
+            <div style={card}>
+              <h2 style={sectionTitle}>🏆 Самые популярные квизы</h2>
+              {data.popularQuizzes?.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+                  {data.popularQuizzes.map((q, i) => (
+                    <div key={i} style={quizRow}>
+                      <div style={rankBadge(i)}>{i + 1}</div>
+                      <div style={{ flex: 1, fontWeight: 600, color: '#f4f7fb' }}>{q.title}</div>
+                      <div style={{ color: '#14B8A6', fontWeight: 700, fontSize: 15 }}>
+                        {q.attempts} {plural(q.attempts, ['попытка', 'попытки', 'попыток'])}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ color: '#6b7280', textAlign: 'center', padding: '24px 0' }}>Нет данных о прохождениях</div>
+              )}
+            </div>
+
+            {/* Кнопка Excel */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+              <button onClick={handleExcel} style={excelBtn}>
+                📥 Скачать результаты (Excel)
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-const fieldStyle = { marginBottom: 20 };
-const inputStyle = { width: '100%', padding: 10, marginTop: 5, border: '1px solid #ccc', borderRadius: 6 };
-const buttonStyle = { padding: '10px 20px', border: 'none', borderRadius: 8, cursor: 'pointer', background: '#4caf50', color: 'white', fontWeight: 'bold' };
-const cardStyle = { padding: 16, border: '1px solid #ddd', borderRadius: 8, marginBottom: 16, background: '#f9f9f9' };
+function plural(n, forms) {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if ([2,3,4].includes(mod10) && ![12,13,14].includes(mod100)) return forms[1];
+  return forms[2];
+}
+
+function rankBadge(i) {
+  const colors = ['#F59E0B', '#9ca3af', '#cd7c2f'];
+  return {
+    width: 28, height: 28, borderRadius: '50%',
+    background: colors[i] || 'rgba(124,58,237,0.3)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 800, fontSize: 13, color: i < 3 ? '#0f0f1a' : '#c4b5fd',
+    flexShrink: 0,
+  };
+}
+
+const page = { minHeight: '100vh', padding: '40px 0 80px' };
+const container = { maxWidth: 900, margin: '0 auto', padding: '0 24px' };
+const header = { marginBottom: 32 };
+const backBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  color: '#9ca3af', fontSize: 14, fontWeight: 500, marginBottom: 12,
+  textDecoration: 'none',
+};
+const title = { fontSize: 30, fontWeight: 800, color: '#f4f7fb', margin: 0 };
+const card = {
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 20, padding: 24, marginBottom: 20,
+};
+const statsGrid = {
+  display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20,
+};
+const sectionTitle = { fontSize: 18, fontWeight: 700, color: '#f4f7fb', margin: 0 };
+const quizRow = {
+  display: 'flex', alignItems: 'center', gap: 14,
+  padding: '12px 16px', borderRadius: 12,
+  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+};
+const excelBtn = {
+  padding: '13px 32px', borderRadius: 14, border: 'none',
+  background: 'linear-gradient(135deg, #10B981, #14B8A6)',
+  color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+  boxShadow: '0 8px 24px rgba(20,184,166,0.35)',
+};
