@@ -16,7 +16,7 @@ export default function Stats() {
 
   const handleExcel = async () => {
     try {
-      const res = await api.get('/admin/export', { responseType: 'blob' });
+      const res = await api.get('/admin/export-results', { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
