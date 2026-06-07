@@ -140,3 +140,26 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: 'Ошибка сброса пароля' });
   }
 };
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword || newPassword.length < 6)
+      return res.status(400).json({ message: 'Заполните все поля. Пароль — минимум 6 символов' });
+
+    const [[user]] = await pool.query(
+      'SELECT id, password_hash FROM users WHERE id = ?', [req.user.id]
+    );
+    if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+
+    const ok = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!ok) return res.status(400).json({ message: 'Неверный текущий пароль' });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, user.id]);
+
+    res.json({ message: 'Пароль успешно изменён' });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка смены пароля' });
+  }
+};
