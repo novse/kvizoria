@@ -50,8 +50,8 @@ export default function App() {
               <Route path="/admin/quiz/create" element={<CreateQuiz />} />
               <Route path="/admin/quiz/edit/:id" element={<CreateQuiz />} />
               <Route path="/creator/quizzes" element={<MyQuizzes />} />
-<Route path="/creator/quizzes/new" element={<CreateQuiz />} />
-<Route path="/creator/quizzes/:id/edit" element={<CreateQuiz />} />
+<Route path="/creator/quizzes/new" element={<CreateQuizCreator />} />
+<Route path="/creator/quizzes/:id/edit" element={<CreateQuizCreator />} />
 <Route path="/admin/stats" element={<Stats />} />
               <Route path="*" element={
                 <div style={{ textAlign: 'center', padding: '100px 20px' }}>
