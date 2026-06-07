@@ -199,6 +199,25 @@ async function initDatabase() {
 
         console.log('✅ Таблицы проверены/созданы');
 
+        // Миграция: убедиться, что violation_type — VARCHAR(50), а не ENUM
+        try {
+            const [cols] = await conn.query(`
+                SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'violations_log'
+                  AND COLUMN_NAME = 'violation_type'
+            `);
+            if (cols.length > 0 && !cols[0].COLUMN_TYPE.toLowerCase().startsWith('varchar')) {
+                await conn.query(`
+                    ALTER TABLE violations_log
+                    MODIFY COLUMN violation_type VARCHAR(50) NOT NULL
+                `);
+                console.log('✅ Миграция violations_log.violation_type: ENUM → VARCHAR(50)');
+            }
+        } catch (migErr) {
+            console.warn('⚠️  Миграция violation_type пропущена:', migErr.message);
+        }
+
         // Заполнение тестовыми данными, если база пуста
         const [[initialized]] = await conn.query(`SELECT COUNT(*) AS count FROM db_initialized`);
         if (initialized.count === 0) {
