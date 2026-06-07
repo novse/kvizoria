@@ -78,6 +78,36 @@ export default function Stats() {
               )}
             </div>
 
+            {/* Последние прохождения */}
+            {data.recentAttempts?.length > 0 && (
+              <div style={card}>
+                <h2 style={sectionTitle}>🕐 Последние прохождения</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+                  {data.recentAttempts.map((a, i) => (
+                    <div key={i} style={quizRow}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: '#f4f7fb', fontSize: 14 }}>{a.title}</div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                          {a.username} · {new Date(a.completed_at).toLocaleString('ru')}
+                        </div>
+                      </div>
+                      <div style={{
+                        fontWeight: 700, fontSize: 15,
+                        color: a.percent_score >= 80 ? '#10B981' : a.percent_score >= 50 ? '#F59E0B' : '#EF4444'
+                      }}>
+                        {Number(a.percent_score).toFixed(0)}%
+                      </div>
+                      <div style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 99,
+                        background: a.is_passed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: a.is_passed ? '#10B981' : '#EF4444',
+                      }}>{a.is_passed ? 'СДАНО' : 'НЕ СДАНО'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Кнопка Excel */}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
               <button onClick={handleExcel} style={excelBtn}>
