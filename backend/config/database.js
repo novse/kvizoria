@@ -208,14 +208,25 @@ async function initDatabase() {
                   AND COLUMN_NAME = 'violation_type'
             `);
             if (cols.length > 0 && !cols[0].COLUMN_TYPE.toLowerCase().startsWith('varchar')) {
+                console.log('🔧 Миграция: пересоздаём violations_log (старый тип:', cols[0].COLUMN_TYPE, ')');
+                await conn.query(`DROP TABLE IF EXISTS violations_log`);
                 await conn.query(`
-                    ALTER TABLE violations_log
-                    MODIFY COLUMN violation_type VARCHAR(50) NOT NULL
+                    CREATE TABLE violations_log (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        attempt_id INT DEFAULT NULL,
+                        user_id INT NOT NULL,
+                        quiz_id INT NOT NULL,
+                        violation_type VARCHAR(50) NOT NULL,
+                        description VARCHAR(255) DEFAULT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+                    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
                 `);
-                console.log('✅ Миграция violations_log.violation_type: ENUM → VARCHAR(50)');
+                console.log('✅ violations_log пересоздана с VARCHAR(50)');
             }
         } catch (migErr) {
-            console.warn('⚠️  Миграция violation_type пропущена:', migErr.message);
+            console.warn('⚠️  Миграция violation_type:', migErr.message);
         }
 
         // Заполнение тестовыми данными, если база пуста
