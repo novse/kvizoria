@@ -24,10 +24,14 @@ export default function Admin() {
 
   const [users, setUsers] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
+  const [violations, setViolations] = useState([]);
+  const [violationsLoading, setViolationsLoading] = useState(false);
+  const [violationsError, setViolationsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [sectionError, setSectionError] = useState('');
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
+  const [violationsSearch, setViolationsSearch] = useState('');
   const [roleDrafts, setRoleDrafts] = useState({});
   const [savingUserId, setSavingUserId] = useState(null);
   const [deletingQuizId, setDeletingQuizId] = useState(null);
@@ -64,8 +68,24 @@ export default function Admin() {
       }
     }
 
+    async function loadViolations() {
+      setViolationsLoading(true);
+      setViolationsError('');
+      try {
+        const res = await api.get('/admin/violations');
+        if (!mounted) return;
+        setViolations(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        if (!mounted) return;
+        setViolationsError(err?.response?.data?.message || err?.message || 'Не удалось загрузить нарушения');
+      } finally {
+        if (mounted) setViolationsLoading(false);
+      }
+    }
+
     if (isAdmin) {
       loadAdminData();
+      loadViolations();
     } else {
       setLoading(false);
       setSectionError('Требуются права администратора.');
@@ -82,9 +102,28 @@ export default function Admin() {
       creatorCount: users.filter((item) => item.role === 'creator').length,
       adminCount: users.filter((item) => item.role === 'admin').length,
       quizCount: quizzes.length,
+      violationsCount: violations.length,
     }),
-    [users, quizzes]
+    [users, quizzes, violations]
   );
+
+  const VIOLATION_LABELS = {
+    tab_switch:   '🔀 Переключение вкладки',
+    copy_attempt: '📋 Попытка копирования',
+    right_click:  '🖱️ Правая кнопка мыши',
+    ctrl_v:       '⌨️ Ctrl+V',
+    ctrl_u:       '⌨️ Ctrl+U',
+    ctrl_s:       '⌨️ Ctrl+S',
+    devtools_open:'🛠️ Открытие DevTools',
+  };
+
+  const filteredViolations = violations.filter((v) => {
+    const term = violationsSearch.trim().toLowerCase();
+    if (!term) return true;
+    return [v.username, v.quiz_title, v.violation_type]
+      .filter(Boolean)
+      .some((val) => String(val).toLowerCase().includes(term));
+  });
 
   const handleRoleChange = (userId, value) => {
     setRoleDrafts((current) => ({
@@ -185,6 +224,7 @@ export default function Admin() {
               { label: 'Creators', value: stats.creatorCount },
               { label: 'Admins', value: stats.adminCount },
               { label: 'Quizzes', value: stats.quizCount },
+              { label: 'Нарушения', value: stats.violationsCount },
             ].map((item) => (
               <div key={item.label} style={summaryCardStyle}>
                 <div style={{ color: '#8c97a8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -332,6 +372,61 @@ export default function Admin() {
             </div>
           </section>
         </div>
+
+        {/* ─── НАРУШЕНИЯ ──────────────────────────────────────────── */}
+        <section style={{ ...panelStyle, marginTop: 18 }}>
+          <div style={sectionHeaderStyle}>
+            <h2 style={{ margin: 0 }}>⚠️ Нарушения при прохождении</h2>
+            <span style={mutedText}>{filteredViolations.length} записей</span>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <input
+              value={violationsSearch}
+              onChange={(e) => setViolationsSearch(e.target.value)}
+              placeholder="Поиск по имени, квизу или типу нарушения"
+              style={{ ...inputStyle, maxWidth: 420 }}
+            />
+          </div>
+
+          {violationsLoading ? (
+            <div style={{ color: '#97a3b6', padding: 12 }}>Загружаем нарушения…</div>
+          ) : violationsError ? (
+            <div style={{ ...errorBoxStyle, marginBottom: 0 }}>{violationsError}</div>
+          ) : filteredViolations.length === 0 ? (
+            <div style={emptyStyle}>Нарушений не зафиксировано.</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    {['Пользователь', 'Квиз', 'Тип нарушения', 'Дата и время'].map((h) => (
+                      <th key={h} style={thStyle}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredViolations.map((v, i) => (
+                    <tr key={v.id ?? i} style={i % 2 === 0 ? trEvenStyle : trOddStyle}>
+                      <td style={tdStyle}>{v.username || `User #${v.user_id}`}</td>
+                      <td style={tdStyle}>{v.quiz_title || `Quiz #${v.quiz_id}`}</td>
+                      <td style={tdStyle}>
+                        <span style={violationBadgeStyle}>
+                          {VIOLATION_LABELS[v.violation_type] || v.violation_type}
+                        </span>
+                      </td>
+                      <td style={{ ...tdStyle, color: '#8c97a8', whiteSpace: 'nowrap' }}>
+                        {v.created_at
+                          ? new Date(v.created_at).toLocaleString('ru')
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -361,7 +456,7 @@ const headerStyle = {
 
 const summaryGrid = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
   gap: 12,
 };
 
@@ -460,6 +555,50 @@ const errorBoxStyle = {
   background: 'rgba(235, 87, 87, 0.08)',
   border: '1px solid rgba(235, 87, 87, 0.22)',
   color: '#ffb4b4',
+};
+
+const tableStyle = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 14,
+};
+
+const thStyle = {
+  padding: '10px 14px',
+  textAlign: 'left',
+  background: 'rgba(255,255,255,0.05)',
+  color: '#8ee7c8',
+  fontWeight: 700,
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: 0.8,
+  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  whiteSpace: 'nowrap',
+};
+
+const tdStyle = {
+  padding: '10px 14px',
+  borderBottom: '1px solid rgba(255,255,255,0.05)',
+  verticalAlign: 'middle',
+};
+
+const trEvenStyle = {
+  background: 'rgba(255,255,255,0.01)',
+};
+
+const trOddStyle = {
+  background: 'rgba(255,255,255,0.03)',
+};
+
+const violationBadgeStyle = {
+  display: 'inline-block',
+  padding: '3px 10px',
+  background: 'rgba(235, 87, 87, 0.12)',
+  border: '1px solid rgba(235, 87, 87, 0.28)',
+  color: '#ffb4b4',
+  fontSize: 12,
+  borderRadius: 4,
+  whiteSpace: 'nowrap',
 };
 
 export { statCardStyle, errorBoxStyle };
