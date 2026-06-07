@@ -24,16 +24,17 @@ exports.createQuiz = async (req, res) => {
     }
 
     const cover_image = req.file ? `/uploads/${req.file.filename}` : null;
+    const uuid = require('uuid').v4();
 
     if (!title) return res.status(400).json({ message: 'Название обязательно' });
     if (!Array.isArray(questions) || questions.length === 0)
       return res.status(400).json({ message: 'Добавьте хотя бы один вопрос' });
 
     const [result] = await pool.query(
-      `INSERT INTO quizzes (title, description, cover_image, quiz_type, difficulty, time_limit,
+      `INSERT INTO quizzes (uuid, title, description, cover_image, quiz_type, difficulty, time_limit,
         category_id, author_id, is_published)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      [title, description || null, cover_image, quiz_type || 'classic',
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      [uuid, title, description || null, cover_image, quiz_type || 'classic',
        difficulty || 'medium', time_limit || null, category_id || null, req.user.id]
     );
 
