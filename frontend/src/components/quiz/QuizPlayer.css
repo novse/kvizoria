@@ -325,4 +325,41 @@
   color: #FCA5A5;
   font-size: 14px;
 }
+  /* ── Предупреждение о переключении вкладки ── */
+.quiz-player__tab-warning {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.quiz-player__tab-warning-inner {
+  background: #1a0a2e;
+  border: 2px solid rgba(235, 87, 87, 0.5);
+  border-radius: 20px;
+  padding: 40px 48px;
+  max-width: 440px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 0 60px rgba(235, 87, 87, 0.3);
+}
+
+.quiz-player__tab-warning-inner strong {
+  font-size: 22px;
+  color: #f87171;
+}
+
+.quiz-player__tab-warning-inner p {
+  color: #b0bac7;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
 }
