@@ -57,7 +57,7 @@ exports.createQuiz = async (req, res) => {
       }
     }
 
-    res.status(201).json({ message: 'Квиз создан и опубликован' });
+    res.status(201).json({ message: 'Квиз создан' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -101,20 +101,22 @@ exports.updateQuiz = async (req, res) => {
       [title, description, quiz_type, time_limit, req.params.id, req.user.id]
     );
     
-    await pool.query('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = ?)', [req.params.id]);
+    await pool.query('DELETE FROM answers WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = ?)', [req.params.id]);
     await pool.query('DELETE FROM questions WHERE quiz_id = ?', [req.params.id]);
     
-    for (const q of questions) {
-      const [qResult] = await pool.query(
-        'INSERT INTO questions (quiz_id, text, correct_index) VALUES (?, ?, ?)',
-        [req.params.id, q.text, q.correct]
-      );
-      const questionId = qResult.insertId;
-      for (let i = 0; i < q.options.length; i++) {
-        await pool.query(
-          'INSERT INTO options (question_id, option_text, option_index) VALUES (?, ?, ?)',
-          [questionId, q.options[i], i]
+    if (Array.isArray(questions)) {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const [qResult] = await pool.query(
+          'INSERT INTO questions (quiz_id, text, question_type, explanation, points, order_num) VALUES (?, ?, ?, ?, ?, ?)',
+          [req.params.id, q.text, q.question_type || 'single', q.explanation || null, q.points || 1, i]
         );
+        for (const a of (q.answers || [])) {
+          await pool.query(
+            'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
+            [qResult.insertId, a.text, a.is_correct ? 1 : 0]
+          );
+        }
       }
     }
     
@@ -142,11 +144,113 @@ exports.togglePublish = async (req, res) => {
       [req.params.id, req.user.id]
     );
     if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
-
     const newStatus = quiz.is_published ? 0 : 1;
     await pool.query('UPDATE quizzes SET is_published = ? WHERE id = ?', [newStatus, quiz.id]);
     res.json({ is_published: newStatus, message: newStatus ? 'Квиз опубликован' : 'Квиз снят с публикации' });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Результаты прохождения квизов создателя
+exports.getQuizResults = async (req, res) => {
+  try {
+    const { quizId } = req.query;
+    let where = 'q.author_id = ?';
+    const params = [req.user.id];
+    if (quizId) { where += ' AND q.id = ?'; params.push(quizId); }
+
+    const [results] = await pool.query(`
+      SELECT
+        qa.id, qa.score, qa.max_score, qa.percent_score,
+        qa.is_passed, qa.violations_count, qa.completed_at,
+        u.username, u.email,
+        q.id AS quiz_id, q.title AS quiz_title
+      FROM quiz_attempts qa
+      JOIN users u ON qa.user_id = u.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE ${where}
+      ORDER BY qa.completed_at DESC
+    `, params);
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Нарушения по квизам создателя
+exports.getQuizViolations = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT v.*, u.username, q.title AS quiz_title
+      FROM violations_log v
+      JOIN users u ON v.user_id = u.id
+      JOIN quizzes q ON v.quiz_id = q.id
+      WHERE q.author_id = ?
+      ORDER BY v.created_at DESC
+      LIMIT 200
+    `, [req.user.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Экспорт результатов создателя в Excel
+exports.exportResultsToExcel = async (req, res) => {
+  const ExcelJS = require('exceljs');
+  try {
+    const { quizId } = req.query;
+    let where = 'q.author_id = ?';
+    const params = [req.user.id];
+    if (quizId) { where += ' AND q.id = ?'; params.push(quizId); }
+
+    const [results] = await pool.query(`
+      SELECT
+        u.username AS name, u.email,
+        q.title AS quiz_title,
+        qa.score, qa.max_score, qa.percent_score,
+        CASE WHEN qa.is_passed = 1 THEN 'Да' ELSE 'Нет' END AS passed,
+        qa.violations_count, qa.completed_at
+      FROM quiz_attempts qa
+      JOIN users u ON qa.user_id = u.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE ${where}
+      ORDER BY qa.completed_at DESC
+    `, params);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Результаты');
+    worksheet.columns = [
+      { header: 'Участник',    key: 'name',             width: 22 },
+      { header: 'Email',       key: 'email',            width: 30 },
+      { header: 'Квиз',        key: 'quiz_title',       width: 35 },
+      { header: 'Баллы',       key: 'score',            width: 10 },
+      { header: 'Макс. баллы', key: 'max_score',        width: 12 },
+      { header: '% результат', key: 'percent_score',    width: 14 },
+      { header: 'Сдано',       key: 'passed',           width: 10 },
+      { header: 'Нарушения',   key: 'violations_count', width: 12 },
+      { header: 'Дата',        key: 'completed_at',     width: 22 },
+    ];
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+    results.forEach(r => {
+      worksheet.addRow({
+        ...r,
+        percent_score: Number(r.percent_score).toFixed(1) + '%',
+        completed_at: r.completed_at ? new Date(r.completed_at).toLocaleString('ru') : '',
+      });
+    });
+
+    const filename = quizId ? `results-quiz-${quizId}.xlsx` : 'results-my-quizzes.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
