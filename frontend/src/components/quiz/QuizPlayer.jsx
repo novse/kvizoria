@@ -129,9 +129,14 @@ export default function QuizPlayer({
     return () => document.removeEventListener('contextmenu', handleContextMenu);
   }, [logViolation]);
 
-  // === 4. БЛОКИРОВКА CTRL+V, CTRL+U, CTRL+S ===
+  // === 4. БЛОКИРОВКА CTRL+V, CTRL+U, CTRL+S, F12 ===
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.key === 'F12') {
+        e.preventDefault();
+        logViolation('devtools_open');
+        return false;
+      }
       if (e.ctrlKey && ['v', 'u', 's'].includes(e.key)) {
         e.preventDefault();
         logViolation(`ctrl_${e.key}`);
