@@ -33,7 +33,7 @@ exports.createQuiz = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO quizzes (uuid, title, description, cover_image, quiz_type, difficulty, time_limit,
         category_id, author_id, is_published)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [uuid, title, description || null, cover_image, quiz_type || 'classic',
        difficulty || 'medium', time_limit || null, category_id || null, req.user.id]
     );
@@ -129,6 +129,23 @@ exports.deleteQuiz = async (req, res) => {
   try {
     await pool.query('DELETE FROM quizzes WHERE id = ? AND author_id = ?', [req.params.id, req.user.id]);
     res.json({ message: 'Удалён' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Публикация / снятие с публикации
+exports.togglePublish = async (req, res) => {
+  try {
+    const [[quiz]] = await pool.query(
+      'SELECT id, is_published FROM quizzes WHERE id = ? AND author_id = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
+
+    const newStatus = quiz.is_published ? 0 : 1;
+    await pool.query('UPDATE quizzes SET is_published = ? WHERE id = ?', [newStatus, quiz.id]);
+    res.json({ is_published: newStatus, message: newStatus ? 'Квиз опубликован' : 'Квиз снят с публикации' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
