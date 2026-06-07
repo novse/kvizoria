@@ -39,10 +39,14 @@ router.post('/quizzes/:uuid/violation', auth, async (req, res) => {
             return res.status(404).json({ error: 'Quiz not found' });
         }
         
+        // Нормализуем тип — обрезаем до 50 символов на случай старого ENUM в БД
+        const ALLOWED_TYPES = ['tab_switch', 'copy_attempt', 'right_click', 'ctrl_v', 'ctrl_u', 'ctrl_s', 'devtools_open'];
+        const safeType = ALLOWED_TYPES.includes(type) ? type : String(type).slice(0, 50);
+
         await pool.query(
             `INSERT INTO violations_log (user_id, quiz_id, violation_type, description, created_at)
              VALUES (?, ?, ?, ?, FROM_UNIXTIME(?/1000))`,
-            [req.user.id, quiz.id, type, `Обнаружено нарушение: ${type}`, timestamp || Date.now()]
+            [req.user.id, quiz.id, safeType, `Обнаружено нарушение: ${safeType}`, timestamp || Date.now()]
         );
         
         res.json({ success: true });
