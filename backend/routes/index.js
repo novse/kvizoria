@@ -15,6 +15,7 @@ router.post('/auth/register', authCtrl.register);
 router.post('/auth/login', authCtrl.login);
 router.get('/auth/me', auth, authCtrl.me);
 router.put('/auth/profile', auth, upload.single('avatar'), authCtrl.updateProfile);
+router.put('/auth/change-password', auth, authCtrl.changePassword);
 router.post('/auth/forgot-password', authCtrl.forgotPassword);
 router.post('/auth/reset-password', authCtrl.resetPassword);
 
