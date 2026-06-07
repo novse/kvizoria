@@ -78,6 +78,7 @@ router.get('/admin/stats', auth, adminOnly, statsController.getAdminStats);
 // ─── CREATOR ─────────────────────────────────────────────────
 router.get('/creator/quizzes', auth, creatorOrAdmin, creatorCtrl.getMyQuizzes);
 router.post('/creator/quizzes', auth, creatorOrAdmin, upload.single('cover'), creatorCtrl.createQuiz);
+router.put('/creator/quizzes/:id/toggle-publish', auth, creatorOrAdmin, creatorCtrl.togglePublish);
 router.get('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.getQuizForEdit);
 router.put('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.deleteQuiz);
