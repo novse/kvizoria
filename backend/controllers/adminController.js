@@ -104,7 +104,7 @@ exports.createQuizAdmin = async (req, res) => {
             INSERT INTO quizzes (uuid, title, description, cover_image, category_id, author_id,
                 quiz_type, difficulty, time_limit, max_attempts, is_public, shuffle_questions,
                 shuffle_answers, pass_score, is_published)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         `, [uuid, title, description, cover_image, category_id || null, req.user.id,
             quiz_type || 'classic', difficulty || 'medium', time_limit || null,
             max_attempts || 3, is_public !== false ? 1 : 0,
