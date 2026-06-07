@@ -179,7 +179,7 @@ export default function CreateQuizForm({ isAdmin }) {
         await api.put(endpoint, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setSuccess('Квиз обновлён!');
       } else {
-        const endpoint = isAdmin ? '/admin/quizzes' : '/quizzes';
+        const endpoint = isAdmin ? '/admin/quizzes' : '/creator/quizzes';
         await api.post(endpoint, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setSuccess('Квиз создан и опубликован!');
         setForm({ title: '', description: '', quiz_type: 'classic', difficulty: 'medium', time_limit: '', category_id: '' });
