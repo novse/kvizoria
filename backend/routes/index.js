@@ -33,22 +33,15 @@ router.post('/quizzes/:uuid/violation', auth, async (req, res) => {
     try {
         const { uuid } = req.params;
         const { type, timestamp } = req.body;
-        
         const [[quiz]] = await pool.query('SELECT id FROM quizzes WHERE uuid = ?', [uuid]);
-        if (!quiz) {
-            return res.status(404).json({ error: 'Quiz not found' });
-        }
-        
-        // Нормализуем тип — обрезаем до 50 символов на случай старого ENUM в БД
+        if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
         const ALLOWED_TYPES = ['tab_switch', 'copy_attempt', 'right_click', 'ctrl_v', 'ctrl_u', 'ctrl_s', 'devtools_open'];
         const safeType = ALLOWED_TYPES.includes(type) ? type : String(type).slice(0, 50);
-
         await pool.query(
             `INSERT INTO violations_log (user_id, quiz_id, violation_type, description, created_at)
              VALUES (?, ?, ?, ?, FROM_UNIXTIME(?/1000))`,
             [req.user.id, quiz.id, safeType, `Обнаружено нарушение: ${safeType}`, timestamp || Date.now()]
         );
-        
         res.json({ success: true });
     } catch (err) {
         console.error('Violation log error:', err);
@@ -73,7 +66,7 @@ router.get('/admin/violations', auth, adminOnly, adminCtrl.getViolations);
 router.get('/admin/categories', auth, adminOnly, adminCtrl.getCategories);
 router.post('/admin/categories', auth, adminOnly, adminCtrl.createCategory);
 router.delete('/admin/categories/:id', auth, adminOnly, adminCtrl.deleteCategory);
-router.get('/admin/export-results', exportController.exportResultsToExcel);
+router.get('/admin/export-results', auth, adminOnly, exportController.exportResultsToExcel);
 router.post('/admin/quizzes', auth, adminOnly, upload.single('cover'), adminCtrl.createQuizAdmin);
 router.get('/admin/quizzes/:id/edit', auth, adminOnly, adminCtrl.getQuizForEdit);
 router.put('/admin/quizzes/:id', auth, adminOnly, adminCtrl.updateQuiz);
@@ -86,5 +79,8 @@ router.put('/creator/quizzes/:id/toggle-publish', auth, creatorOrAdmin, creatorC
 router.get('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.getQuizForEdit);
 router.put('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.deleteQuiz);
+router.get('/creator/results', auth, creatorOrAdmin, creatorCtrl.getQuizResults);
+router.get('/creator/violations', auth, creatorOrAdmin, creatorCtrl.getQuizViolations);
+router.get('/creator/export-results', auth, creatorOrAdmin, creatorCtrl.exportResultsToExcel);
 
 module.exports = router;
