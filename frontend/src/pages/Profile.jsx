@@ -58,6 +58,31 @@ function Profile() {
   const [createError, setCreateError] = useState('');
   const [quizDraft, setQuizDraft] = useState(initialQuizDraft);
 
+  // Edit profile
+  const [editUsername, setEditUsername] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editAvatarFile, setEditAvatarFile] = useState(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMessage, setEditMessage] = useState('');
+  const [editError, setEditError] = useState('');
+
+  // Change password
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwMessage, setPwMessage] = useState('');
+  const [pwError, setPwError] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setEditUsername(user.username || '');
+      setEditBio(user.bio || '');
+      setEditAvatarPreview(user.avatar ? (user.avatar.startsWith('http') ? user.avatar : `${window.location.origin}${user.avatar}`) : '');
+    }
+  }, [user]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -110,6 +135,53 @@ function Profile() {
   }, [history]);
 
   const recentHistory = history.slice(0, 5);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditAvatarFile(file);
+    setEditAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleEditProfile = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    setEditError('');
+    setEditMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('username', editUsername.trim());
+      formData.append('bio', editBio.trim());
+      if (editAvatarFile) formData.append('avatar', editAvatarFile);
+      await api.put('/auth/profile', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setEditMessage('Профиль обновлён!');
+      setEditAvatarFile(null);
+    } catch (err) {
+      setEditError(err?.response?.data?.message || 'Не удалось обновить профиль');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwError('');
+    setPwMessage('');
+    if (pwNew !== pwConfirm) return setPwError('Пароли не совпадают');
+    if (pwNew.length < 6) return setPwError('Пароль должен быть не менее 6 символов');
+    setPwLoading(true);
+    try {
+      await api.put('/auth/change-password', { currentPassword: pwCurrent, newPassword: pwNew });
+      setPwMessage('Пароль успешно изменён!');
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+    } catch (err) {
+      setPwError(err?.response?.data?.message || 'Не удалось изменить пароль');
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   const handleDraftChange = (field, value) => {
     setQuizDraft((current) => ({
@@ -271,8 +343,89 @@ function Profile() {
             )}
           </section>
 
+          {/* ── Редактирование профиля ── */}
+          <section className="profile-card" style={panelStyle}>
+            <div style={sectionHeaderStyle}>
+              <h2 style={sectionTitleStyle}>👤 Редактировать профиль</h2>
+            </div>
+            <form onSubmit={handleEditProfile} style={formStyle}>
+              {/* Avatar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20 }}>
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: editAvatarPreview ? 'transparent' : 'linear-gradient(135deg, #7C3AED, #14B8A6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 28, fontWeight: 800, color: '#fff', overflow: 'hidden',
+                    border: '2px solid rgba(124,58,237,0.4)',
+                  }}>
+                    {editAvatarPreview
+                      ? <img src={editAvatarPreview} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : getDisplayName(user)?.[0]?.toUpperCase()}
+                  </div>
+                </div>
+                <div>
+                  <label style={{
+                    display: 'inline-block', padding: '8px 16px', borderRadius: 10,
+                    border: '1.5px solid rgba(124,58,237,0.4)', background: 'rgba(124,58,237,0.08)',
+                    color: '#c4b5fd', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                    📷 Сменить аватар
+                    <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                  </label>
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'rgba(167,139,250,0.5)' }}>JPG, PNG, WebP · до 5MB</p>
+                </div>
+              </div>
 
-        </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <label style={fieldStyle}>
+                  <span style={fieldLabelStyle}>Имя пользователя</span>
+                  <input className="profile-input" style={inputStyle} value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="Ваше имя" required />
+                </label>
+                <label style={fieldStyle}>
+                  <span style={fieldLabelStyle}>О себе (bio)</span>
+                  <textarea className="profile-input" style={textareaStyle} value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Расскажите о себе..." rows={3} />
+                </label>
+              </div>
+
+              {editError && <div style={{ ...errorBoxStyle, marginTop: 12 }}>⚠️ {editError}</div>}
+              {editMessage && <div style={{ ...successBoxStyle, marginTop: 12 }}>✅ {editMessage}</div>}
+
+              <button type="submit" disabled={editLoading} style={{ ...primaryButtonStyle, marginTop: 16 }}>
+                {editLoading ? 'Сохраняем…' : '💾 Сохранить изменения'}
+              </button>
+            </form>
+          </section>
+
+          {/* ── Смена пароля ── */}
+          <section className="profile-card" style={panelStyle}>
+            <div style={sectionHeaderStyle}>
+              <h2 style={sectionTitleStyle}>🔒 Смена пароля</h2>
+            </div>
+            <form onSubmit={handleChangePassword} style={formStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <label style={fieldStyle}>
+                  <span style={fieldLabelStyle}>Текущий пароль</span>
+                  <input style={inputStyle} type="password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} placeholder="••••••••" required />
+                </label>
+                <label style={fieldStyle}>
+                  <span style={fieldLabelStyle}>Новый пароль</span>
+                  <input style={inputStyle} type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} placeholder="Минимум 6 символов" required />
+                </label>
+                <label style={fieldStyle}>
+                  <span style={fieldLabelStyle}>Подтвердите новый пароль</span>
+                  <input style={inputStyle} type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} placeholder="Повторите пароль" required />
+                </label>
+              </div>
+
+              {pwError && <div style={{ ...errorBoxStyle, marginTop: 12 }}>⚠️ {pwError}</div>}
+              {pwMessage && <div style={{ ...successBoxStyle, marginTop: 12 }}>✅ {pwMessage}</div>}
+
+              <button type="submit" disabled={pwLoading} style={{ ...primaryButtonStyle, marginTop: 16 }}>
+                {pwLoading ? 'Меняем…' : '🔑 Изменить пароль'}
+              </button>
+            </form>
+
       </div>
     </div>
   );
