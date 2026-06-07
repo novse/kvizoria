@@ -181,7 +181,7 @@ export default function CreateQuizForm({ isAdmin }) {
       } else {
         const endpoint = isAdmin ? '/admin/quizzes' : '/creator/quizzes';
         await api.post(endpoint, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        setSuccess('Квиз создан и опубликован!');
+        setSuccess(isAdmin ? 'Квиз сохранён как черновик. Опубликуй его в панели управления.' : 'Квиз сохранён как черновик. Перейди в «Мои квизы» чтобы опубликовать.');
         setForm({ title: '', description: '', quiz_type: 'classic', difficulty: 'medium', time_limit: '', category_id: '' });
         setQuestions([makeQuestion()]);
         removeCover();
