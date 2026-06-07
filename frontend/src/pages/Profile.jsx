@@ -134,7 +134,7 @@ function Profile() {
     return { attempts, passed, totalScore, totalMax, percent };
   }, [history]);
 
-  const recentHistory = history.slice(0, 5);
+  const recentHistory = history;
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
@@ -281,7 +281,9 @@ function Profile() {
               {getDisplayName(user)}
             </h1>
             <p style={subtitleStyle}>
-              Смотрите историю прохождений и создавайте квизы через удобную форму.
+              {isAdmin || role === 'creator'
+                ? 'Управляйте квизами и просматривайте свою статистику.'
+                : 'Просматривайте историю прохождений и управляйте профилем.'}
             </p>
           </div>
 
@@ -306,7 +308,9 @@ function Profile() {
           ))}
         </div>
 
-        <div className="profile-grid" style={contentGridStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* История — на всю ширину */}
           <section className="profile-card" style={panelStyle}>
             <div style={sectionHeaderStyle}>
               <h2 style={sectionTitleStyle}>История прохождений</h2>
@@ -328,7 +332,10 @@ function Profile() {
                         {item?.completed_at ? new Date(item.completed_at).toLocaleString('ru') : 'recently'}
                       </div>
                     </div>
-                    <div style={historyScoreStyle}>{Number(item?.percent_score || 0).toFixed(0)}%</div>
+                    <div style={{
+                      ...historyScoreStyle,
+                      color: Number(item?.percent_score) >= 80 ? '#10B981' : Number(item?.percent_score) >= 50 ? '#F59E0B' : '#EF4444'
+                    }}>{Number(item?.percent_score || 0).toFixed(0)}%</div>
                   </div>
                 ))}
               </div>
@@ -342,6 +349,9 @@ function Profile() {
               </div>
             )}
           </section>
+
+          {/* Редактирование + Смена пароля в две колонки */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
           {/* ── Редактирование профиля ── */}
           <section className="profile-card" style={panelStyle}>
@@ -380,11 +390,11 @@ function Profile() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <label style={fieldStyle}>
                   <span style={fieldLabelStyle}>Имя пользователя</span>
-                  <input className="profile-input" style={inputStyle} value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="Ваше имя" required />
+                  <input style={inputStyle} value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="Ваше имя" required />
                 </label>
                 <label style={fieldStyle}>
                   <span style={fieldLabelStyle}>О себе (bio)</span>
-                  <textarea className="profile-input" style={textareaStyle} value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Расскажите о себе..." rows={3} />
+                  <textarea style={textareaStyle} value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Расскажите о себе..." rows={3} />
                 </label>
               </div>
 
@@ -425,7 +435,10 @@ function Profile() {
                 {pwLoading ? 'Меняем…' : '🔑 Изменить пароль'}
               </button>
             </form>
+          </section>
 
+          </div>
+        </div>
       </div>
     </div>
   );
