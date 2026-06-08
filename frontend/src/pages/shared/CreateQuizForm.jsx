@@ -35,6 +35,7 @@ export default function CreateQuizForm({ isAdmin }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isEdit = !!id;
+  const coverInputRef = useRef(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -43,10 +44,11 @@ export default function CreateQuizForm({ isAdmin }) {
     difficulty: 'medium',
     time_limit: '',
     category_id: '',
-    cover_url: '',
   });
   const [questions, setQuestions] = useState([makeQuestion()]);
   const [categories, setCategories] = useState([]);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -65,7 +67,7 @@ export default function CreateQuizForm({ isAdmin }) {
           time_limit: q.time_limit ? Math.floor(q.time_limit / 60) : '',
           category_id: q.category_id || '',
         });
-        if (q.cover_image) setForm(f => ({ ...f, cover_url: q.cover_image }));
+        if (q.cover_image) setCoverPreview(q.cover_image.startsWith('http') ? q.cover_image : `${window.location.origin}${q.cover_image}`);
         if (q.questions?.length) {
           setQuestions(q.questions.map(qq => ({
             text: qq.text || '',
@@ -78,6 +80,18 @@ export default function CreateQuizForm({ isAdmin }) {
     }
   }, [id, isAdmin, isEdit]);
 
+  const handleCoverChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+  };
+
+  const removeCover = () => {
+    setCoverFile(null);
+    setCoverPreview('');
+    if (coverInputRef.current) coverInputRef.current.value = '';
+  };
 
   // Question helpers
   const updateQuestion = (qIdx, field, value) => {
