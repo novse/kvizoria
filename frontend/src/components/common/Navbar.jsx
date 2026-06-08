@@ -31,6 +31,7 @@ export default function Navbar() {
             <>
               <Link to="/creator/quizzes" className="nav-link" onClick={() => setMenuOpen(false)}>📋 Мои квизы</Link>
               <Link to="/creator/results" className="nav-link" onClick={() => setMenuOpen(false)}>📊 Результаты</Link>
+              <Link to="/creator/stats" className="nav-link" onClick={() => setMenuOpen(false)}>📈 Статистика</Link>
             </>
           )}
         </div>
