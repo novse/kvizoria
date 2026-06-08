@@ -254,3 +254,78 @@ exports.exportResultsToExcel = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Сводная статистика создателя
+exports.getCreatorStats = async (req, res) => {
+  try {
+    const id = req.user.id;
+
+    const [[{ totalQuizzes }]] = await pool.query(
+      'SELECT COUNT(*) AS totalQuizzes FROM quizzes WHERE author_id = ?', [id]
+    );
+    const [[{ publishedQuizzes }]] = await pool.query(
+      'SELECT COUNT(*) AS publishedQuizzes FROM quizzes WHERE author_id = ? AND is_published = 1', [id]
+    );
+    const [[{ totalAttempts }]] = await pool.query(`
+      SELECT COUNT(*) AS totalAttempts
+      FROM quiz_attempts qa JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE q.author_id = ?`, [id]
+    );
+    const [[{ passedAttempts }]] = await pool.query(`
+      SELECT COUNT(*) AS passedAttempts
+      FROM quiz_attempts qa JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE q.author_id = ? AND qa.is_passed = 1`, [id]
+    );
+    const [[{ avgScore }]] = await pool.query(`
+      SELECT AVG(qa.percent_score) AS avgScore
+      FROM quiz_attempts qa JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE q.author_id = ?`, [id]
+    );
+    const [[{ totalViolations }]] = await pool.query(`
+      SELECT COUNT(*) AS totalViolations
+      FROM violations_log v JOIN quizzes q ON v.quiz_id = q.id
+      WHERE q.author_id = ?`, [id]
+    );
+
+    const [popularQuizzes] = await pool.query(`
+      SELECT q.title, q.is_published,
+             COUNT(qa.id) AS attempts,
+             ROUND(AVG(qa.percent_score), 1) AS avgPercent,
+             SUM(CASE WHEN qa.is_passed = 1 THEN 1 ELSE 0 END) AS passed
+      FROM quizzes q
+      LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id
+      WHERE q.author_id = ?
+      GROUP BY q.id, q.title, q.is_published
+      ORDER BY attempts DESC
+      LIMIT 5
+    `, [id]);
+
+    const [recentAttempts] = await pool.query(`
+      SELECT u.username, q.title, qa.percent_score, qa.is_passed,
+             qa.violations_count, qa.completed_at
+      FROM quiz_attempts qa
+      JOIN users u ON qa.user_id = u.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE q.author_id = ?
+      ORDER BY qa.completed_at DESC
+      LIMIT 10
+    `, [id]);
+
+    res.json({
+      totalQuizzes,
+      publishedQuizzes,
+      totalAttempts,
+      passedAttempts,
+      passRate: totalAttempts > 0
+        ? Math.round((passedAttempts / totalAttempts) * 100)
+        : 0,
+      avgScore: Number(avgScore || 0).toFixed(1),
+      totalViolations,
+      popularQuizzes,
+      recentAttempts,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+};
