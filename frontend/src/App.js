@@ -14,6 +14,7 @@ import MyQuizzes from './pages/creator/MyQuizzes';
 import CreateQuizCreator from './pages/creator/CreateQuiz';
 import CreatorResults from './pages/creator/Results';
 import Stats from './pages/admin/Stats';
+import CreatorStats from './pages/creator/Stats';
 
 function Footer() {
   return (
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="/creator/quizzes/:id/edit" element={<CreateQuizCreator />} />
               <Route path="/creator/results" element={<CreatorResults />} />
               <Route path="/admin/stats" element={<Stats />} />
+  <Route path="/creator/stats" element={<CreatorStats />} />
               <Route path="*" element={
                 <div style={{ textAlign: 'center', padding: '100px 20px' }}>
                   <div style={{ fontSize: 64, marginBottom: 16 }}>🔍</div>
