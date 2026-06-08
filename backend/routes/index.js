@@ -82,5 +82,9 @@ router.delete('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.deleteQu
 router.get('/creator/results', auth, creatorOrAdmin, creatorCtrl.getQuizResults);
 router.get('/creator/violations', auth, creatorOrAdmin, creatorCtrl.getQuizViolations);
 router.get('/creator/export-results', auth, creatorOrAdmin, creatorCtrl.exportResultsToExcel);
+router.get('/creator/stats', auth, creatorOrAdmin, creatorCtrl.getCreatorStats);
+router.get('/creator/results', auth, creatorOrAdmin, creatorCtrl.getQuizResults);
+router.get('/creator/violations', auth, creatorOrAdmin, creatorCtrl.getQuizViolations);
+router.get('/creator/export-results', auth, creatorOrAdmin, creatorCtrl.exportResultsToExcel);
 
 module.exports = router;
