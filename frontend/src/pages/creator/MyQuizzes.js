@@ -57,6 +57,11 @@ export default function MyQuizzes() {
           <Link to="/creator/quizzes/new" style={createBtn}>+ Создать квиз</Link>
         </div>
 
+<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+  <Link to="/creator/stats" style={{ ...createBtn, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#6ee7b7', boxShadow: 'none' }}>📈 Статистика</Link>
+  <Link to="/creator/results" style={{ ...createBtn, background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.4)', color: '#c4b5fd', boxShadow: 'none' }}>📊 Результаты</Link>
+  <Link to="/creator/quizzes/new" style={createBtn}>+ Создать квиз</Link>
+</div>
         {error && <div style={errorBox}>⚠️ {error}</div>}
         {loading && <div style={emptyBox}>Загружаем квизы…</div>}
 
