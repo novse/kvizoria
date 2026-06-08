@@ -72,7 +72,7 @@ exports.getQuizForEdit = async (req, res) => {
       [req.params.id, req.user.id]
     );
     if (quizzes.length === 0) return res.status(404).json({ error: 'Не найден' });
-    
+
     const [questions] = await pool.query(
       'SELECT * FROM questions WHERE quiz_id = ? ORDER BY order_num',
       [req.params.id]
@@ -84,7 +84,7 @@ exports.getQuizForEdit = async (req, res) => {
       );
       q.answers = answers;
     }
-    
+
     res.json({ ...quizzes[0], questions });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -94,34 +94,71 @@ exports.getQuizForEdit = async (req, res) => {
 // Обновить квиз
 exports.updateQuiz = async (req, res) => {
   try {
-    const { title, description, quiz_type, time_limit, questions } = req.body;
-    
-    await pool.query(
-      'UPDATE quizzes SET title = ?, description = ?, quiz_type = ?, time_limit = ? WHERE id = ? AND author_id = ?',
-      [title, description, quiz_type, time_limit, req.params.id, req.user.id]
+    const { title, description, quiz_type, difficulty, time_limit, category_id } = req.body;
+
+    if (!title) return res.status(400).json({ message: 'Название обязательно' });
+
+    let questions = req.body.questions;
+    if (typeof questions === 'string') {
+      try { questions = JSON.parse(questions); } catch (e) { questions = []; }
+    }
+    if (!Array.isArray(questions) || questions.length === 0)
+      return res.status(400).json({ message: 'Добавьте хотя бы один вопрос' });
+
+    const [[quiz]] = await pool.query(
+      'SELECT id FROM quizzes WHERE id = ? AND author_id = ?',
+      [req.params.id, req.user.id]
     );
-    
-    await pool.query('DELETE FROM answers WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = ?)', [req.params.id]);
+    if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
+
+    const cover_image = req.file ? `/uploads/${req.file.filename}` : undefined;
+
+    const updateFields = [
+      title,
+      description || null,
+      quiz_type || 'classic',
+      difficulty || 'medium',
+      time_limit ? Number(time_limit) : null,
+      category_id || null,
+    ];
+
+    if (cover_image !== undefined) {
+      await pool.query(
+        'UPDATE quizzes SET title=?, description=?, quiz_type=?, difficulty=?, time_limit=?, category_id=?, cover_image=? WHERE id=?',
+        [...updateFields, cover_image, req.params.id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE quizzes SET title=?, description=?, quiz_type=?, difficulty=?, time_limit=?, category_id=? WHERE id=?',
+        [...updateFields, req.params.id]
+      );
+    }
+
+    const [oldQuestions] = await pool.query('SELECT id FROM questions WHERE quiz_id = ?', [req.params.id]);
+    for (const oq of oldQuestions) {
+      await pool.query('DELETE FROM answers WHERE question_id = ?', [oq.id]);
+    }
     await pool.query('DELETE FROM questions WHERE quiz_id = ?', [req.params.id]);
-    
-    if (Array.isArray(questions)) {
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        const [qResult] = await pool.query(
-          'INSERT INTO questions (quiz_id, text, question_type, explanation, points, order_num) VALUES (?, ?, ?, ?, ?, ?)',
-          [req.params.id, q.text, q.question_type || 'single', q.explanation || null, q.points || 1, i]
+
+    for (let idx = 0; idx < questions.length; idx++) {
+      const q = questions[idx];
+      const [qResult] = await pool.query(
+        'INSERT INTO questions (quiz_id, text, question_type, explanation, time_limit, points, order_num) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [req.params.id, q.text, q.question_type || 'single', q.explanation || null,
+         q.time_limit || null, q.points || 1, idx]
+      );
+      const questionId = qResult.insertId;
+      for (const a of (q.answers || [])) {
+        await pool.query(
+          'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
+          [questionId, a.text, a.is_correct ? 1 : 0]
         );
-        for (const a of (q.answers || [])) {
-          await pool.query(
-            'INSERT INTO answers (question_id, text, is_correct) VALUES (?, ?, ?)',
-            [qResult.insertId, a.text, a.is_correct ? 1 : 0]
-          );
-        }
       }
     }
-    
+
     res.json({ message: 'Квиз обновлён' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -136,117 +173,87 @@ exports.deleteQuiz = async (req, res) => {
   }
 };
 
-// Публикация / снятие с публикации
-exports.togglePublish = async (req, res) => {
-  try {
-    const [[quiz]] = await pool.query(
-      'SELECT id, is_published FROM quizzes WHERE id = ? AND author_id = ?',
-      [req.params.id, req.user.id]
-    );
-    if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
-    const newStatus = quiz.is_published ? 0 : 1;
-    await pool.query('UPDATE quizzes SET is_published = ? WHERE id = ?', [newStatus, quiz.id]);
-    res.json({ is_published: newStatus, message: newStatus ? 'Квиз опубликован' : 'Квиз снят с публикации' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 // Результаты прохождения квизов создателя
-exports.getQuizResults = async (req, res) => {
+exports.getMyResults = async (req, res) => {
   try {
     const { quizId } = req.query;
-    let where = 'q.author_id = ?';
-    const params = [req.user.id];
-    if (quizId) { where += ' AND q.id = ?'; params.push(quizId); }
-
-    const [results] = await pool.query(`
+    let query = `
       SELECT
-        qa.id, qa.score, qa.max_score, qa.percent_score,
-        qa.is_passed, qa.violations_count, qa.completed_at,
-        u.username, u.email,
-        q.id AS quiz_id, q.title AS quiz_title
+        qa.id,
+        u.username,
+        u.email,
+        q.id        AS quiz_id,
+        q.title     AS quiz_title,
+        qa.score,
+        qa.max_score,
+        qa.percent_score,
+        qa.is_passed,
+        qa.completed_at,
+        (SELECT COUNT(*) FROM violations_log vl
+         WHERE vl.user_id = qa.user_id AND vl.quiz_id = qa.quiz_id) AS violations_count
       FROM quiz_attempts qa
-      JOIN users u ON qa.user_id = u.id
+      JOIN users   u ON qa.user_id = u.id
       JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE ${where}
-      ORDER BY qa.completed_at DESC
-    `, params);
-
-    res.json(results);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// Нарушения по квизам создателя
-exports.getQuizViolations = async (req, res) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT v.*, u.username, q.title AS quiz_title
-      FROM violations_log v
-      JOIN users u ON v.user_id = u.id
-      JOIN quizzes q ON v.quiz_id = q.id
       WHERE q.author_id = ?
-      ORDER BY v.created_at DESC
-      LIMIT 200
-    `, [req.user.id]);
+    `;
+    const params = [req.user.id];
+    if (quizId) { query += ' AND q.id = ?'; params.push(quizId); }
+    query += ' ORDER BY qa.completed_at DESC';
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// Экспорт результатов создателя в Excel
-exports.exportResultsToExcel = async (req, res) => {
-  const ExcelJS = require('exceljs');
+// Экспорт результатов своих квизов в Excel
+exports.exportMyResults = async (req, res) => {
   try {
+    const ExcelJS = require('exceljs');
     const { quizId } = req.query;
-    let where = 'q.author_id = ?';
-    const params = [req.user.id];
-    if (quizId) { where += ' AND q.id = ?'; params.push(quizId); }
-
-    const [results] = await pool.query(`
+    let query = `
       SELECT
-        u.username AS name, u.email,
-        q.title AS quiz_title,
-        qa.score, qa.max_score, qa.percent_score,
+        u.username  AS name,
+        u.email,
+        q.title     AS quiz_title,
+        qa.score,
+        qa.max_score,
+        qa.percent_score,
         CASE WHEN qa.is_passed = 1 THEN 'Да' ELSE 'Нет' END AS passed,
-        qa.violations_count, qa.completed_at
+        qa.completed_at
       FROM quiz_attempts qa
-      JOIN users u ON qa.user_id = u.id
+      JOIN users   u ON qa.user_id = u.id
       JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE ${where}
-      ORDER BY qa.completed_at DESC
-    `, params);
+      WHERE q.author_id = ?
+    `;
+    const params = [req.user.id];
+    if (quizId) { query += ' AND q.id = ?'; params.push(quizId); }
+    query += ' ORDER BY qa.completed_at DESC';
+    const [results] = await pool.query(query, params);
 
-    const workbook = new ExcelJS.Workbook();
+    const workbook  = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Результаты');
     worksheet.columns = [
-      { header: 'Участник',    key: 'name',             width: 22 },
-      { header: 'Email',       key: 'email',            width: 30 },
-      { header: 'Квиз',        key: 'quiz_title',       width: 35 },
-      { header: 'Баллы',       key: 'score',            width: 10 },
-      { header: 'Макс. баллы', key: 'max_score',        width: 12 },
-      { header: '% результат', key: 'percent_score',    width: 14 },
-      { header: 'Сдано',       key: 'passed',           width: 10 },
-      { header: 'Нарушения',   key: 'violations_count', width: 12 },
-      { header: 'Дата',        key: 'completed_at',     width: 22 },
+      { header: 'Пользователь', key: 'name',          width: 22 },
+      { header: 'Email',        key: 'email',         width: 30 },
+      { header: 'Квиз',         key: 'quiz_title',    width: 35 },
+      { header: 'Баллы',        key: 'score',         width: 10 },
+      { header: 'Макс. баллы',  key: 'max_score',     width: 12 },
+      { header: '% результат',  key: 'percent_score', width: 14 },
+      { header: 'Сдано',        key: 'passed',        width: 10 },
+      { header: 'Дата',         key: 'completed_at',  width: 22 },
     ];
-    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
     worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
     results.forEach(r => {
       worksheet.addRow({
         ...r,
         percent_score: Number(r.percent_score).toFixed(1) + '%',
-        completed_at: r.completed_at ? new Date(r.completed_at).toLocaleString('ru') : '',
+        completed_at:  r.completed_at ? new Date(r.completed_at).toLocaleString('ru') : '',
       });
     });
-
-    const filename = quizId ? `results-quiz-${quizId}.xlsx` : 'results-my-quizzes.xlsx';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.setHeader('Content-Disposition', 'attachment; filename=my-quiz-results.xlsx');
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
@@ -255,77 +262,19 @@ exports.exportResultsToExcel = async (req, res) => {
   }
 };
 
-// Сводная статистика создателя
-exports.getCreatorStats = async (req, res) => {
+// Публикация / снятие с публикации
+exports.togglePublish = async (req, res) => {
   try {
-    const id = req.user.id;
+    const [[quiz]] = await pool.query(
+      'SELECT id, is_published FROM quizzes WHERE id = ? AND author_id = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!quiz) return res.status(404).json({ message: 'Квиз не найден' });
 
-    const [[{ totalQuizzes }]] = await pool.query(
-      'SELECT COUNT(*) AS totalQuizzes FROM quizzes WHERE author_id = ?', [id]
-    );
-    const [[{ publishedQuizzes }]] = await pool.query(
-      'SELECT COUNT(*) AS publishedQuizzes FROM quizzes WHERE author_id = ? AND is_published = 1', [id]
-    );
-    const [[{ totalAttempts }]] = await pool.query(`
-      SELECT COUNT(*) AS totalAttempts
-      FROM quiz_attempts qa JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE q.author_id = ?`, [id]
-    );
-    const [[{ passedAttempts }]] = await pool.query(`
-      SELECT COUNT(*) AS passedAttempts
-      FROM quiz_attempts qa JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE q.author_id = ? AND qa.is_passed = 1`, [id]
-    );
-    const [[{ avgScore }]] = await pool.query(`
-      SELECT AVG(qa.percent_score) AS avgScore
-      FROM quiz_attempts qa JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE q.author_id = ?`, [id]
-    );
-    const [[{ totalViolations }]] = await pool.query(`
-      SELECT COUNT(*) AS totalViolations
-      FROM violations_log v JOIN quizzes q ON v.quiz_id = q.id
-      WHERE q.author_id = ?`, [id]
-    );
-
-    const [popularQuizzes] = await pool.query(`
-      SELECT q.title, q.is_published,
-             COUNT(qa.id) AS attempts,
-             ROUND(AVG(qa.percent_score), 1) AS avgPercent,
-             SUM(CASE WHEN qa.is_passed = 1 THEN 1 ELSE 0 END) AS passed
-      FROM quizzes q
-      LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id
-      WHERE q.author_id = ?
-      GROUP BY q.id, q.title, q.is_published
-      ORDER BY attempts DESC
-      LIMIT 5
-    `, [id]);
-
-    const [recentAttempts] = await pool.query(`
-      SELECT u.username, q.title, qa.percent_score, qa.is_passed,
-             qa.violations_count, qa.completed_at
-      FROM quiz_attempts qa
-      JOIN users u ON qa.user_id = u.id
-      JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE q.author_id = ?
-      ORDER BY qa.completed_at DESC
-      LIMIT 10
-    `, [id]);
-
-    res.json({
-      totalQuizzes,
-      publishedQuizzes,
-      totalAttempts,
-      passedAttempts,
-      passRate: totalAttempts > 0
-        ? Math.round((passedAttempts / totalAttempts) * 100)
-        : 0,
-      avgScore: Number(avgScore || 0).toFixed(1),
-      totalViolations,
-      popularQuizzes,
-      recentAttempts,
-    });
+    const newStatus = quiz.is_published ? 0 : 1;
+    await pool.query('UPDATE quizzes SET is_published = ? WHERE id = ?', [newStatus, quiz.id]);
+    res.json({ is_published: newStatus, message: newStatus ? 'Квиз опубликован' : 'Квиз снят с публикации' });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
