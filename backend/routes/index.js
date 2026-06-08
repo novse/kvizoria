@@ -66,10 +66,10 @@ router.get('/admin/violations', auth, adminOnly, adminCtrl.getViolations);
 router.get('/admin/categories', auth, adminOnly, adminCtrl.getCategories);
 router.post('/admin/categories', auth, adminOnly, adminCtrl.createCategory);
 router.delete('/admin/categories/:id', auth, adminOnly, adminCtrl.deleteCategory);
-router.get('/admin/export-results', auth, adminOnly, exportController.exportResultsToExcel);
+router.get('/admin/export-results', exportController.exportResultsToExcel);
 router.post('/admin/quizzes', auth, adminOnly, upload.single('cover'), adminCtrl.createQuizAdmin);
 router.get('/admin/quizzes/:id/edit', auth, adminOnly, adminCtrl.getQuizForEdit);
-router.put('/admin/quizzes/:id', auth, adminOnly, adminCtrl.updateQuiz);
+router.put('/admin/quizzes/:id', auth, adminOnly, upload.single('cover'), adminCtrl.updateQuiz);
 router.get('/admin/stats', auth, adminOnly, statsController.getAdminStats);
 
 // ─── CREATOR ─────────────────────────────────────────────────
@@ -77,14 +77,9 @@ router.get('/creator/quizzes', auth, creatorOrAdmin, creatorCtrl.getMyQuizzes);
 router.post('/creator/quizzes', auth, creatorOrAdmin, upload.single('cover'), creatorCtrl.createQuiz);
 router.put('/creator/quizzes/:id/toggle-publish', auth, creatorOrAdmin, creatorCtrl.togglePublish);
 router.get('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.getQuizForEdit);
-router.put('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.updateQuiz);
+router.put('/creator/quizzes/:id', auth, creatorOrAdmin, upload.single('cover'), creatorCtrl.updateQuiz);
 router.delete('/creator/quizzes/:id', auth, creatorOrAdmin, creatorCtrl.deleteQuiz);
-router.get('/creator/results', auth, creatorOrAdmin, creatorCtrl.getQuizResults);
-router.get('/creator/violations', auth, creatorOrAdmin, creatorCtrl.getQuizViolations);
-router.get('/creator/export-results', auth, creatorOrAdmin, creatorCtrl.exportResultsToExcel);
-router.get('/creator/stats', auth, creatorOrAdmin, creatorCtrl.getCreatorStats);
-router.get('/creator/results', auth, creatorOrAdmin, creatorCtrl.getQuizResults);
-router.get('/creator/violations', auth, creatorOrAdmin, creatorCtrl.getQuizViolations);
-router.get('/creator/export-results', auth, creatorOrAdmin, creatorCtrl.exportResultsToExcel);
+router.get('/creator/results', auth, creatorOrAdmin, creatorCtrl.getMyResults);
+router.get('/creator/export-results', auth, creatorOrAdmin, creatorCtrl.exportMyResults);
 
 module.exports = router;
